@@ -213,16 +213,13 @@ func (m *Termcast) ExecEnv() *dagger.Container {
 }
 
 func (m *Termcast) execFull(ctx context.Context, cmd string) (*Termcast, error) {
-	cast, err := m.ExecEnv().
-		WithExec([]string{ /*"setsid", */ "/usr/local/bin/asciinema", "rec", "-c", cmd, "./term.cast"}, dagger.ContainerWithExecOpts{
-			ExperimentalPrivilegedNesting: true,
-		}).
-		File("./term.cast").
-		Contents(ctx)
-	if err != nil {
-		return m, err
-	}
-	return m.Decode(cast, true)
+	recording := m.ExecEnv().
+		WithExec(
+			[]string{"/usr/local/bin/asciinema", "rec", "-c", cmd, "./term.cast"},
+			dagger.ContainerWithExecOpts{ExperimentalPrivilegedNesting: true},
+		).
+		File("./term.cast")
+	return m.Decode(ctx, recording, true)
 }
 
 func (m *Termcast) execSimple(
@@ -283,42 +280,29 @@ func (m *Termcast) Backspace(
 	return m
 }
 
-// Encode the recording to a file in the asciicast v2 format
-func (m *Termcast) File() (*dagger.File, error) {
-	contents, err := m.Encode()
-	if err != nil {
-		return nil, err
-	}
-	file := dag.
-		Directory().
-		WithNewFile("castfile", contents).
-		File("castfile")
-	return file, nil
-}
-
 // Encode the recording to a string in the asciicast v2 format
-func (m *Termcast) Encode() (string, error) {
+func (m *Termcast) Encode() (*dagger.File, error) {
 	var out strings.Builder
 	if err := json.NewEncoder(&out).Encode(map[string]interface{}{
 		"version": 2,
 		"width":   m.Width,
 		"height":  m.Height,
 	}); err != nil {
-		return out.String(), err
+		return nil, err
 	}
 	for _, e := range m.Events {
 		line, err := e.Encode()
 		if err != nil {
-			return out.String(), err
+			return nil, err
 		}
 		out.Write([]byte(line + "\n"))
 	}
-	return out.String(), nil
+	return newFile("rec.cast", out.String()), nil
 }
 
 // Return an interactive terminal that will play the recording, read-only.
 func (m *Termcast) Play(ctx context.Context) error {
-	file, err := m.File()
+	file, err := m.Encode()
 	if err != nil {
 		return err
 	}
@@ -340,7 +324,7 @@ func (m *Termcast) Gif() (*dagger.File, error) {
 		Tree().
 		DockerBuild().
 		WithoutEntrypoint()
-	file, err := m.File()
+	file, err := m.Encode()
 	if err != nil {
 		return nil, err
 	}
@@ -355,15 +339,20 @@ func (m *Termcast) Gif() (*dagger.File, error) {
 //
 //	See https://docs.asciinema.org/manual/asciicast/v2/
 func (m *Termcast) Decode(
+	ctx context.Context,
 	// The data to decode, in asciicast format
-	data string,
+	data *dagger.File,
 	// Indicate whether the decoder should expect an asciicast header.
 	// If true, the decoder will parse (and discrd) the header, the load the events
 	// If false, the decoder will look for events directly
 	// +default=true
 	expectHeader bool,
 ) (*Termcast, error) {
-	dec := json.NewDecoder(strings.NewReader(data))
+	contents, err := data.Contents(ctx)
+	if err != nil {
+		return nil, err
+	}
+	dec := json.NewDecoder(strings.NewReader(contents))
 	if expectHeader {
 		// Parse and discard header (we already have our own)
 		var header map[string]interface{}
@@ -436,5 +425,9 @@ Prompt:
 	}
 	// Tell the decoder to not expect a header,
 	// since we told the LLM to not generate one.
-	return m.Decode(out, false)
+	return m.Decode(ctx, newFile("rec.cast", out), false)
+}
+
+func newFile(name, contents string) *dagger.File {
+	return dag.Directory().WithNewFile(name, contents).File(name)
 }

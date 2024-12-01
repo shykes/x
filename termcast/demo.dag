@@ -1,5 +1,46 @@
-#!/usr/bin/env dagger shell -m github.com/shykes/daggerverse/termcast
+#!/usr/bin/env dagger shell --no-load
 
-CTR=$(.container | from alpine | with-exec apk,add,git,openssh | with-workdir /root)
-with-container $CTR | exec-env | terminal
-with-container $CTR | exec 'dagger -m github.com/dagger/dagger dev-export -o .' | gif | ..export ./demo.gif
+# EXAMPLE_COMMAND="dagger core container from --address=alpine with-exec --args=apk --args=add --args=openssh --args=rsync --args=go"
+
+record_input() {
+    .load . |
+    print '$ ' |
+    keystrokes "$1" |
+    enter |
+    encode
+}
+
+record_output() {
+    .container |
+    from alpine |
+    with-file /bin/dagger $(.load github.com/dagger/dagger/cmd/dagger | binary) |
+    with-exec apk,add,asciinema |
+    with-new-file /bin/cmd.sh "$1" --permissions=0711 |
+    with-exec asciinema,rec,out.cast,-c,"sh /bin/cmd.sh" --experimental-privileged-nesting |
+    file out.cast
+}
+
+record() {
+    input=$(record_input "$1")
+    output=$(record_output "$1")
+    .container |
+    from alpine |
+    with-file /input $input |
+    with-file /output $output |
+    with-exec cat,/input,/output --redirect-stdout=/both |
+    file /both
+}
+
+agg() {
+    .git https://github.com/asciinema/agg |
+    commit 84ef0590c9deb61d21469f2669ede31725103173 |
+    tree |
+    docker-build |
+    with-file rec.cast "$1" |
+    with-exec agg,rec.cast,rec.gif |
+    file rec.gif
+}
+
+agg $(
+    record "dagger core container from --address=alpine with-exec --args=apk --args=add --args=autoconf"
+) | export ./recording.gif
