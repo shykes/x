@@ -1,22 +1,12 @@
 {
   "name": "daggy",
-  "engineVersion": "v0.14.0",
+  "engineVersion": "v0.14.1-241125161542-b45075103e68",
   "sdk": "go",
   "dependencies": [
     {
-      "name": "core",
-      "source": "github.com/shykes/daggerverse/core@ad39bc977bfd41de248257ba75f863fdb3dcdccd",
-      "pin": "ad39bc977bfd41de248257ba75f863fdb3dcdccd"
-    },
-    {
-      "name": "go",
-      "source": "github.com/vito/daggerverse/go@9f66a3dc5a3687c0828e2499894a51315f998b5c",
-      "pin": "9f66a3dc5a3687c0828e2499894a51315f998b5c"
-    },
-    {
-      "name": "wolfi",
-      "source": "../wolfi",
-      "pin": ""
+      "name": "dagger-cli",
+      "source": "github.com/dagger/dagger/cmd/dagger",
+      "pin": "62508b799509bafb9c9cb2e90213d7b1f7719da9"
     }
   ],
   "source": "."
