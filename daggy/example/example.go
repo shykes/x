@@ -44,6 +44,22 @@ func main() {
 		Model: openai.F(openai.ChatModelGPT4o),
 	}
 
+	// paramsJSON, err := json.Marshal(params)
+	// if err != nil {
+	// 	panic("MARSHAL: " + err.Error())
+	// }
+	// var params2 openai.ChatCompletionNewParams
+	// if err := json.Unmarshal(paramsJSON, &params2); err != nil {
+	// 	panic("UNMARSHAL: " + err.Error())
+	// }
+	// params = params2
+	defer func() {
+		history, err := json.Marshal(params.Messages.Value)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("------ HISTORY -------\n%s\n----------", history)
+	}()
 	// Make initial chat completion request
 	completion, err := client.Chat.Completions.New(ctx, params)
 	if err != nil {

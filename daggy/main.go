@@ -45,34 +45,171 @@ Do not give up easily.
 TASK:
 `
 
+func New(
+	// OpenAI API token
+	token *dagger.Secret,
+) Daggy {
+	return Daggy{
+		Token: token,
+	}
+}
+
 // Daggy is an AI agent that knows how to drive Dagger
 // It is powered by OpenAI
-type Daggy struct{}
+type Daggy struct {
+	Token       *dagger.Secret // +private
+	HistoryJSON string
+	//	history     []openai.ChatCompletionMessageParamUnion
+	LastReply string
+}
 
-// Tell Daggy to do something
-func (m *Daggy) Ask(
+type Message map[string]interface{}
+
+func (msg Message) implementsChatCompletionMessageParamUnion() {}
+
+func (m Daggy) loadHistory() []openai.ChatCompletionMessageParamUnion {
+	if m.HistoryJSON == "" {
+		return nil
+	}
+	var raw []interface{}
+	err := json.Unmarshal([]byte(m.HistoryJSON), &raw)
+	if err != nil {
+		panic(err)
+	}
+	var history []openai.ChatCompletionMessageParamUnion
+	for _, msg := range raw {
+		msgJson, err := json.Marshal(msg)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("checking re-marshalled value: '%s'\n", msgJson)
+		var userMessage openai.ChatCompletionUserMessageParam
+		if err := json.Unmarshal(msgJson, &userMessage); err == nil {
+			history = append(history, userMessage)
+			continue
+		} else {
+			fmt.Printf("no match: %s\n", err)
+		}
+		panic(fmt.Sprintf("unsupported message: %v", msg))
+	}
+	//for _, msg := range raw {
+	//	switch v := msg.(type) {
+	//	case openai.ChatCompletionUserMessageParam:
+	//		history = append(history, v)
+	//	default:
+	//		panic(fmt.Sprintf("unsupported message type: %v", msg))
+	//	}
+	//}
+	return history
+}
+
+func (m Daggy) saveHistory(history []openai.ChatCompletionMessageParamUnion) Daggy {
+	data, err := json.Marshal(history)
+	if err != nil {
+		panic(err)
+	}
+	m.HistoryJSON = string(data)
+	return m
+}
+
+func (m Daggy) withAgentMessage(message openai.ChatCompletionMessage) Daggy {
+	hist := m.loadHistory()
+	hist = append(hist, message)
+	return m.saveHistory(hist)
+}
+
+func (m Daggy) WithToolMessage(callId, content string) Daggy {
+	hist := m.loadHistory()
+	hist = append(hist, openai.ToolMessage(callId, content))
+	return m.saveHistory(hist)
+}
+
+func (m Daggy) WithUserMessage(message string) Daggy {
+	hist := m.loadHistory()
+	hist = append(hist, openai.UserMessage(message))
+	return m.saveHistory(hist)
+}
+
+// func (m Daggy) Do(
+// 	ctx context.Context,
+// 	// A prompt telling Daggy what to do
+// 	prompt string,
+// ) (Daggy, error) {
+// 	return m.Prompt(ctx, systemPrompt+"\n"+prompt)
+// }
+
+func (m Daggy) Fake(
 	ctx context.Context,
 	// A prompt telling Daggy what to do
 	prompt string,
-	// OpenAI API key
-	token *dagger.Secret,
-	// Custom base container
-	// +optional
-	base *dagger.Container,
-) (string, error) {
+) Daggy {
+	return m.WithUserMessage(prompt)
+}
+
+func (m Daggy) Prompt(
+	ctx context.Context,
+	// A prompt telling Daggy what to do
+	prompt string,
+) (out Daggy, rerr error) {
+	m = m.WithUserMessage(prompt)
+	for {
+		q, err := m.oaiQuery(ctx)
+		if err != nil {
+			return m, err
+		}
+		// Add the model reply to the history
+		m = m.withAgentMessage(q.Choices[0].Message)
+		// Handle tool calls
+		calls := q.Choices[0].Message.ToolCalls
+		if len(calls) == 0 {
+			break
+		}
+		for _, call := range calls {
+			// Extract the command from the function call arguments
+			var args map[string]interface{}
+			if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
+				return m, err
+			}
+			fmt.Printf("--> [CALL] [%s] %w\n", call.Function.Name, args)
+			switch call.Function.Name {
+			case "give-up":
+				return m, nil
+			case "success":
+				return m, nil
+			case "run":
+				var args map[string]interface{}
+				if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
+					return m, err
+				}
+				result, err := m.toolRun(ctx, args["command"].(string))
+				if err != nil {
+					return m, err
+				}
+				resultJson, err := json.Marshal(result)
+				if err != nil {
+					return m, err
+				}
+				m = m.WithToolMessage(call.ID, string(resultJson))
+			}
+		}
+	}
+	return m, nil
+}
+
+func (m Daggy) oaiQuery(ctx context.Context) (*openai.ChatCompletion, error) {
 	// Initialize the OpenAI client
-	key, err := token.Plaintext(ctx)
+	key, err := m.Token.Plaintext(ctx)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	client := openai.NewClient(
 		option.WithAPIKey(key),
 		option.WithHeader("Content-Type", "application/json"),
 	)
 	params := openai.ChatCompletionNewParams{
-		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
-			openai.UserMessage(systemPrompt + prompt),
-		}),
+		Seed:     openai.Int(0),
+		Model:    openai.F(openai.ChatModelGPT4o),
+		Messages: openai.F(m.loadHistory()),
 		Tools: openai.F([]openai.ChatCompletionToolParam{
 			{
 				Type: openai.F(openai.ChatCompletionToolTypeFunction),
@@ -121,81 +258,40 @@ func (m *Daggy) Ask(
 				}),
 			},
 		}),
-		Seed:  openai.Int(0),
-		Model: openai.F(openai.ChatModelGPT4o),
 	}
-	var lastMessage string
-	for {
-		// DEBUG
-		// jsonBody, err := json.Marshal(params)
-		// if err != nil {
-		// 	return "", fmt.Errorf("error marshalling params: %w", err)
-		// }
-		// fmt.Println("Request JSON:", string(jsonBody))
-		// Make initial chat completion request
+	return client.Chat.Completions.New(ctx, params)
+}
 
-		// Send the next request
-		completion, err := client.Chat.Completions.New(ctx, params)
-		if err != nil {
-			return "", err
-		}
-		lastMessage = completion.Choices[0].Message.Content
-		toolCalls := completion.Choices[0].Message.ToolCalls
-		// Abort early if there are no tool calls
-		if len(toolCalls) == 0 {
-			break
-		}
-		// If there is a was a function call, continue the conversation
-		params.Messages.Value = append(params.Messages.Value, completion.Choices[0].Message)
-		for _, toolCall := range toolCalls {
-			// Extract the command from the function call arguments
-			var args map[string]interface{}
-			if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-				return "", err
-			}
-			fmt.Printf("--> [CALL] [%s] %w\n", toolCall.Function.Name, args)
-			switch toolCall.Function.Name {
-			case "give-up":
-				return "", fmt.Errorf("I give up: %s", args["comment"])
-			case "success":
-				return args["comment"].(string), nil
-			case "run":
-				var args map[string]interface{}
-				if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-					return "", err
-				}
-				command := args["command"].(string)
-				// Execute the command
-				cmd := dag.Container().
-					From("alpine").
-					WithFile("/bin/dagger", dag.DaggerCli().Binary()).
-					WithExec(
-						[]string{"dagger", "shell", "-s", "--no-load", "-c", command},
-						dagger.ContainerWithExecOpts{ExperimentalPrivilegedNesting: true, Expect: dagger.ReturnTypeAny},
-					)
-				stdout, err := cmd.Stdout(ctx)
-				if err != nil {
-					return "", err
-				}
-				stderr, err := cmd.Stderr(ctx)
-				if err != nil {
-					return "", err
-				}
-				var output struct {
-					Stdout string
-					Stderr string
-				}
-				output.Stdout = stdout
-				output.Stderr = stderr
-				outputJson, err := json.Marshal(output)
-				if err != nil {
-					return "", err
-				}
-				// output := fmt.Sprintf("<stdout>%s</stdout><stderr>%s</stderr>", stdout, stderr)
-				params.Messages.Value = append(params.Messages.Value, openai.ToolMessage(toolCall.ID, string(outputJson)))
-				fmt.Printf("<-- [RESULT] %w\n", openai.ToolMessage(toolCall.ID, string(outputJson)))
-			}
-		}
+type toolRunResult struct {
+	Stdout   string
+	Stderr   string
+	ExitCode int
+}
+
+func (m Daggy) toolRun(ctx context.Context, command string) (*toolRunResult, error) {
+	// Execute the command
+	cmd := dag.Container().
+		From("alpine").
+		WithFile("/bin/dagger", dag.DaggerCli().Binary()).
+		WithExec(
+			[]string{"dagger", "shell", "-s", "--no-load", "-c", command},
+			dagger.ContainerWithExecOpts{ExperimentalPrivilegedNesting: true, Expect: dagger.ReturnTypeAny},
+		)
+	stdout, err := cmd.Stdout(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return lastMessage, nil
+	stderr, err := cmd.Stderr(ctx)
+	if err != nil {
+		return nil, err
+	}
+	exitCode, err := cmd.ExitCode(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &toolRunResult{
+		Stdout:   stdout,
+		Stderr:   stderr,
+		ExitCode: exitCode,
+	}, nil
 }
