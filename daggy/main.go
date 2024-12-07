@@ -13,36 +13,33 @@ import (
 )
 
 const systemPrompt = `
-You will be given a task, and access to a terminal.
+<knowledge name="terminal">
+The terminal is your primary tool for accomplishing tasks. It runs the dagger shell, which features:
 
-Don't respond to the request. Simply accomplish the task using the provided tools.
-If you can't accomplish the task, say so in a terse and concise way.
-
-The terminal is running a new kind of shell, called a "container shell". It has the following features:
-
-- A container engine with all common operations I might find in a dockerfile or docker-compose file.
-- Container operations can be chained in pipelines, using the familiar bash syntax. Instead of text flowing between unix commands, it's artifacts flowing between containerized functions.
-- The shell syntax is just a frontend to a declarative API which is fully typed.
-- Artifacts are typed objets. They define functions which themselves are typed.
-- The shell starts in an initial scope. Available builtin commands can be listed with '.help'. Documentation of the current object can be printed with '.doc'.
-- A special builtin .core loads a special object with lots of available functions.
+- a bash-compatible syntax,
+- backed by a container engine with a declarative API.
+- instead of text flowing through unix commands, typed artifacts flow through containerized functions
+- artifacts are immutable, content-addressed, and cached
 
 Example commands:
+- Show builtins: .help
+- Show available functions: .doc
+- Show arguments and return type of a function: .doc FUNC
+- Initialize a container, then show available functions in the returned Container: container | .doc
+- A simple container build: container | from alpine | with-exec apk,add,openssh,git | publish ttl.sh/my-image
+- Sub-pipelines: directory | with-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | head | tree | file README.md)
+- More sub-pipelines: container | from index.docker.io/golang | with-directory /src $(.git https://github.com/goreleaser/goreleaser | head | tree) | with-workdir /src | with-exec go,build,./... | directory ./bin
 
-.help
-.container | .doc
-.container | .doc from
-.container | from alpine | with-exec apk,add,git,openssh | with-exec git,version | stdout
-.container | from index.docker.io/golang | with-directory /src $(.git https://github.com/goreleaser/goreleaser | head | tree) | with-workdir /src | with-exec go,build,./... | directory ./bin
-.git | head | tree | file README.md
-.directory | with-new-file hello.txt "Well hello there"
-.load github.com/dagger/dagger | .doc
-.load github.com/goreleaser/goreleaser | .doc
+Some directories can be executed by Dagger as functions. They are called modules. Examples:
+- .doc github.com/dagger/dagger/cmd/dagger
+- github.com/dagger/dagger/cmd/dagger | binary --platform=darwin/arm64
+- .doc github.com/cubzh/cubzh
+- github.com/cubzh/cubzh | .doc
 
-Take your time to explore the terminal. You can run as many commands as you want. Make ample use of the interactive documentation.
-Do not give up easily.
+The shell can "navigate" to a module. All subsequent commands start from that module's context.
 
-TASK:
+- .use github.com/dagger/dagger; .doc; .use github.com/cubzh/cubzh; .doc
+</knowledge>
 `
 
 // Daggy is an AI agent that knows how to drive Dagger
@@ -170,7 +167,7 @@ func (m *Daggy) Ask(
 					From("alpine").
 					WithFile("/bin/dagger", dag.DaggerCli().Binary()).
 					WithExec(
-						[]string{"dagger", "shell", "-s", "--no-load", "-c", command},
+						[]string{"dagger", "shell", "-s", "-c", command},
 						dagger.ContainerWithExecOpts{ExperimentalPrivilegedNesting: true, Expect: dagger.ReturnTypeAny},
 					)
 				stdout, err := cmd.Stdout(ctx)

@@ -5,8 +5,8 @@
   "dependencies": [
     {
       "name": "dagger-cli",
-      "source": "github.com/dagger/dagger/cmd/dagger",
-      "pin": "62508b799509bafb9c9cb2e90213d7b1f7719da9"
+      "source": "github.com/helderco/dagger/cmd/dagger@helder/dev-4805-shell-navigation-model",
+      "pin": "170038cbfd041246a4c36ca67a405d77524d660f"
     }
   ],
   "source": "."
