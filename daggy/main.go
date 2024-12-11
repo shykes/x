@@ -26,10 +26,9 @@ Example commands:
 - Show available functions: .doc
 - Show arguments and return type of a function: .doc FUNC
 - Initialize a container, then show available functions in the returned Container: container | .doc
-- A simple container build: container | from alpine | with-exec apk,add,openssh,git | publish ttl.sh/my-image
+- A simple container build: container | from alpine | with-exec apk add openssh git | publish ttl.sh/my-image
 - Sub-pipelines: directory | with-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | head | tree | file README.md)
-- More sub-pipelines: container | from index.docker.io/golang | with-directory /src $(.git https://github.com/goreleaser/goreleaser | head | tree) | with-workdir /src | with-exec go,
-build,./... | directory ./bin
+- More sub-pipelines: container | from index.docker.io/golang | with-directory /src $(.git https://github.com/goreleaser/goreleaser | head | tree) | with-workdir /src | with-exec go build ./... | directory ./bin
 
 Some directories can be executed by Dagger as functions. They are called modules. Examples:
 - .doc github.com/dagger/dagger/cmd/dagger
