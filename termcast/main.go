@@ -430,9 +430,7 @@ func (m *Termcast) Imagine(
 
 Prompt:
 ` + prompt
-	out, err := dag.Daggy().Do(ctx, prompt, dagger.DaggyDoOpts{
-		Token: m.Key,
-	})
+	out, err := dag.Daggy().Ask(ctx, prompt, m.Key)
 	if err != nil {
 		return nil, err
 	}

@@ -1,17 +1,15 @@
 {
   "name": "termcast",
-  "engineVersion": "v0.14.0",
+  "engineVersion": "v0.15.1",
   "sdk": "go",
   "dependencies": [
     {
       "name": "daggy",
-      "source": "../daggy",
-      "pin": ""
+      "source": "../daggy"
     },
     {
       "name": "wolfi",
-      "source": "../wolfi",
-      "pin": ""
+      "source": "../wolfi"
     }
   ],
   "source": "."
