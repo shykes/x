@@ -194,10 +194,13 @@ func (m *Termcast) Exec(
 	// +optional
 	// +default=false
 	simple bool,
+	// Make simulated keystrokes faster
+	// +optional
+	fast bool,
 ) (*Termcast, error) {
 	m = m.
 		Print(m.Prompt).
-		Keystrokes(cmd).
+		Keystrokes(cmd, fast).
 		Enter()
 	if simple {
 		return m.execSimple(ctx, cmd, 100)
@@ -247,9 +250,12 @@ func (m *Termcast) execSimple(
 func (m *Termcast) Keystrokes(
 	// Data to input as keystrokes
 	data string,
+	// Make the simulating typing faster
+	// +optional
+	fast bool,
 ) *Termcast {
 	for _, c := range data {
-		m = m.keystroke(string(c))
+		m = m.keystroke(string(c), fast)
 	}
 	return m
 }
@@ -258,13 +264,23 @@ func (m *Termcast) Keystrokes(
 func (m *Termcast) keystroke(
 	// Data to input as keystrokes
 	data string,
+	// Make the simulated keystroke faster
+	fast bool,
 ) *Termcast {
-	return m.WaitRandom(5, 200).Print(data)
+	var (
+		min = 5
+		max = 200
+	)
+	if fast {
+		min = 1
+		max = 80
+	}
+	return m.WaitRandom(min, max).Print(data)
 }
 
 // Simulate pressing the enter key
 func (m *Termcast) Enter() *Termcast {
-	return m.keystroke("\r\n")
+	return m.keystroke("\r\n", false)
 }
 
 // Simulate pressing the backspace key
@@ -272,9 +288,12 @@ func (m *Termcast) Backspace(
 	// Number of backspaces
 	// +default=1
 	repeat int,
+	// Make simulated keystrokes faster
+	// +optional
+	fast bool,
 ) *Termcast {
 	for i := 0; i < repeat; i += 1 {
-		m = m.keystroke("\b \b")
+		m = m.keystroke("\b \b", fast)
 	}
 	return m
 }
