@@ -208,8 +208,7 @@ func (m *Termcast) Exec(
 // Build the execution environment for debugging purposes
 func (m *Termcast) ExecEnv() *dagger.Container {
 	return m.Container.
-		WithDirectory("/", asciinemaBinary()).
-		WithWorkdir("/")
+		WithDirectory("/", asciinemaBinary())
 }
 
 func (m *Termcast) execFull(ctx context.Context, cmd string) (*Termcast, error) {
