@@ -1,4 +1,152 @@
 {
-  "name": "shykes",
-  "engineVersion": "v0.10.0"
+  "name": "x",
+  "engineVersion": "v0.15.2-241213122156-63636db470c7",
+  "sdk": "go",
+  "dependencies": [
+    {
+      "name": "golangci",
+      "source": "github.com/dagger/dagger/modules/golangci",
+      "pin": "8bea631db61b6a1e956df8776af9abb857d478bc"
+    },
+    {
+      "name": "alpine",
+      "source": "github.com/dagger/dagger/modules/alpine",
+      "pin": "8bea631db61b6a1e956df8776af9abb857d478bc"
+    },
+    {
+      "name": "artifactory",
+      "source": "github.com/vbehar/daggerverse/artifactory",
+      "pin": "b4fa92627cebfd8f3bd72d390fa9ca3f0d87e81f"
+    },
+    {
+      "name": "aws-cli",
+      "source": "github.com/sagikazarmark/daggerverse/aws-cli",
+      "pin": "c1be27189ce47d28f84014b715f78e47db9fbadc"
+    },
+    {
+      "name": "browserify",
+      "source": "github.com/vito/daggerverse/browserify",
+      "pin": "94248510329310952e8a1661e2745657bcac7ac8"
+    },
+    {
+      "name": "concourse",
+      "source": "github.com/vito/daggerverse/concourse",
+      "pin": "94248510329310952e8a1661e2745657bcac7ac8"
+    },
+    {
+      "name": "daggerverse",
+      "source": "github.com/dagger/dagger/modules/daggerverse",
+      "pin": "8bea631db61b6a1e956df8776af9abb857d478bc"
+    },
+    {
+      "name": "daggy",
+      "source": "daggy"
+    },
+    {
+      "name": "docker",
+      "source": "docker"
+    },
+    {
+      "name": "docker-compose",
+      "source": "docker-compose"
+    },
+    {
+      "name": "gha",
+      "source": "github.com/dagger/dagger/modules/gha",
+      "pin": "8bea631db61b6a1e956df8776af9abb857d478bc"
+    },
+    {
+      "name": "go",
+      "source": "github.com/dagger/dagger/modules/go",
+      "pin": "8bea631db61b6a1e956df8776af9abb857d478bc"
+    },
+    {
+      "name": "hello",
+      "source": "hello"
+    },
+    {
+      "name": "helm",
+      "source": "github.com/sagikazarmark/daggerverse/helm",
+      "pin": "c1be27189ce47d28f84014b715f78e47db9fbadc"
+    },
+    {
+      "name": "kafka",
+      "source": "github.com/sagikazarmark/daggerverse/kafka",
+      "pin": "c1be27189ce47d28f84014b715f78e47db9fbadc"
+    },
+    {
+      "name": "mdk",
+      "source": "github.com/kpenfound/dagger-modules/mdk",
+      "pin": "1e7df1604da58073060c48e88df95147128b5272"
+    },
+    {
+      "name": "nix",
+      "source": "github.com/vito/daggerverse/nix",
+      "pin": "94248510329310952e8a1661e2745657bcac7ac8"
+    },
+    {
+      "name": "ollama",
+      "source": "ollama"
+    },
+    {
+      "name": "openssh-server",
+      "source": "github.com/sagikazarmark/daggerverse/openssh-server",
+      "pin": "c1be27189ce47d28f84014b715f78e47db9fbadc"
+    },
+    {
+      "name": "proxy",
+      "source": "github.com/kpenfound/dagger-modules/proxy",
+      "pin": "1e7df1604da58073060c48e88df95147128b5272"
+    },
+    {
+      "name": "psql",
+      "source": "github.com/sagikazarmark/daggerverse/psql",
+      "pin": "c1be27189ce47d28f84014b715f78e47db9fbadc"
+    },
+    {
+      "name": "python",
+      "source": "github.com/sagikazarmark/daggerverse/python",
+      "pin": "c1be27189ce47d28f84014b715f78e47db9fbadc"
+    },
+    {
+      "name": "registry",
+      "source": "github.com/sagikazarmark/daggerverse/registry",
+      "pin": "c1be27189ce47d28f84014b715f78e47db9fbadc"
+    },
+    {
+      "name": "singularity",
+      "source": "singularity"
+    },
+    {
+      "name": "slim",
+      "source": "slim"
+    },
+    {
+      "name": "supergit",
+      "source": "supergit"
+    },
+    {
+      "name": "svix",
+      "source": "github.com/sagikazarmark/daggerverse/svix",
+      "pin": "c1be27189ce47d28f84014b715f78e47db9fbadc"
+    },
+    {
+      "name": "tailscale",
+      "source": "tailscale"
+    },
+    {
+      "name": "termcast",
+      "source": "termcast"
+    },
+    {
+      "name": "tmate",
+      "source": "tmate"
+    },
+    {
+      "name": "xcaddy",
+      "source": "github.com/sagikazarmark/daggerverse/xcaddy",
+      "pin": "c1be27189ce47d28f84014b715f78e47db9fbadc"
+    }
+  ],
+  "source": ".dagger"
 }
