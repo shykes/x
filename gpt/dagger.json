@@ -1,0 +1,13 @@
+{
+  "name": "gpt",
+  "engineVersion": "v0.15.1",
+  "sdk": "go",
+  "dependencies": [
+    {
+      "name": "dagger-cli",
+      "source": "github.com/dagger/dagger/cmd/dagger",
+      "pin": "2c0aaae0a24fa857099cc413eb7348d5bcd3ff5c"
+    }
+  ],
+  "source": "."
+}
