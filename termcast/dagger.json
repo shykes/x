@@ -4,12 +4,13 @@
   "sdk": "go",
   "dependencies": [
     {
-      "name": "daggy",
-      "source": "../daggy"
+      "name": "wolfi",
+      "source": "github.com/dagger/dagger/modules/wolfi",
+      "pin": "8bea631db61b6a1e956df8776af9abb857d478bc"
     },
     {
-      "name": "wolfi",
-      "source": "../wolfi"
+      "name": "daggy",
+      "source": "../daggy"
     }
   ],
   "source": "."
