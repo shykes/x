@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"strings"
+
+	"supergit/internal/dagger"
 )
 
 // A new git repository
@@ -24,8 +26,8 @@ func (r *Supergit) Repository() *Repository {
 
 // A git repository
 type Repository struct {
-	State    *Directory
-	Worktree *Directory
+	State    *dagger.Directory
+	Worktree *dagger.Directory
 }
 
 // Execute a git command in the repository
@@ -47,17 +49,13 @@ type GitCommand struct {
 	Input *Repository
 }
 
-func (cmd *GitCommand) container() *Container {
+func (cmd *GitCommand) container() *dagger.Container {
 	prefix := []string{"git", "--git-dir=" + gitStatePath, "--work-tree=" + gitWorktreePath}
 	execArgs := append(prefix, cmd.Args...)
 	return container().
 		WithDirectory(gitStatePath, cmd.Input.State).
 		WithDirectory(gitWorktreePath, cmd.Input.Worktree).
 		WithExec(execArgs)
-}
-
-func (cmd *GitCommand) Debug() *Terminal {
-	return cmd.container().WithWorkdir(gitWorktreePath).Terminal()
 }
 
 func (cmd *GitCommand) Stdout(ctx context.Context) (string, error) {
@@ -107,7 +105,7 @@ type Tag struct {
 	Name       string
 }
 
-func (t *Tag) Tree() *Directory {
+func (t *Tag) Tree() *dagger.Directory {
 	return t.Repository.WithGitCommand([]string{"checkout", t.Name}).Worktree
 }
 
@@ -123,7 +121,7 @@ type Commit struct {
 	Repository *Repository
 }
 
-func (c *Commit) Tree() *Directory {
+func (c *Commit) Tree() *dagger.Directory {
 	return c.Repository.
 		WithGitCommand([]string{"checkout", c.Digest}).
 		Worktree

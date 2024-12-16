@@ -1,5 +1,7 @@
 package main
 
+import "supergit/internal/dagger"
+
 const (
 	gitStatePath    = "/git/state"
 	gitWorktreePath = "/git/worktree"
@@ -7,11 +9,11 @@ const (
 
 type Supergit struct{}
 
-func (s *Supergit) Container() *Container {
+func (s *Supergit) Container() *dagger.Container {
 	return container()
 }
 
-func container() *Container {
+func container() *dagger.Container {
 	return dag.
 		Container().
 		From("cgr.dev/chainguard/wolfi-base").
