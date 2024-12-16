@@ -1,6 +1,6 @@
 {
   "name": "daggy",
-  "engineVersion": "v0.14.1-241125161542-b45075103e68",
+  "engineVersion": "v0.15.1",
   "sdk": "go",
   "dependencies": [
     {
