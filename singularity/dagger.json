@@ -1,5 +1,6 @@
 {
   "name": "singularity",
-  "engineVersion": "v0.14.0",
-  "sdk": "go"
+  "engineVersion": "v0.15.1",
+  "sdk": "go",
+  "source": "."
 }
