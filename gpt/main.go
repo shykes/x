@@ -57,7 +57,7 @@ github.com/shykes/x | python | .doc
 github.com/shykes/x | svix | .doc
 github.com/shykes/x | kafka | .doc
 
-# Bash syntax means the usual quoting rules apply:
+# Bash syntax means the usual quoting rules apply. Be careful to use single quotes when writing shell scripts to a file, or the env variables may be expanded by the dagger shell instead
 foo=bar; directory | with-new-file joke.txt "two programmers meet in a $foo" | with-new-file script.sh 'echo "my user is $USER"'
 
 # with-exec has args within args. use -- judiciously:
