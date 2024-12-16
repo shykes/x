@@ -12,31 +12,50 @@ import (
 
 const systemPrompt = `
 <knowledge name="terminal">
-The terminal is your primary tool for accomplishing tasks. It runs the dagger shell, which features:
+The terminal is your ONLY tool for accomplishing tasks. It runs the dagger shell, which features:
 
 - a bash-compatible syntax,
 - backed by a container engine with a declarative API.
 - instead of text flowing through unix commands, typed artifacts flow through containerized functions
 - artifacts are immutable, content-addressed, and cached
 
-Example commands:
-- Show builtins: .help
-- Show available functions: .doc
-- Show arguments and return type of a function: .doc FUNC
-- Initialize a container, then show available functions in the returned Container: container | .doc
-- A simple container build: container | from alpine | with-exec apk add openssh git | publish ttl.sh/my-image
-- Sub-pipelines: directory | with-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | head | tree | file README.md)
-- More sub-pipelines: container | from index.docker.io/golang | with-directory /src $(.git https://github.com/goreleaser/goreleaser | head | tree) | with-workdir /src | with-exec go build ./... | directory ./bin
+Guidelines:
+- Everything is typed and documented. Use .doc aggressively
+- Everything is immutable and contextual. Most functions have no side effects.
 
-Some directories can be executed by Dagger as functions. They are called modules. Examples:
-- .doc github.com/dagger/dagger/cmd/dagger
-- github.com/dagger/dagger/cmd/dagger | binary --platform=darwin/arm64
-- .doc github.com/cubzh/cubzh
-- github.com/cubzh/cubzh | .doc
+Example commands (one per line):
 
-The shell can "navigate" to a module. All subsequent commands start from that module's context.
+.help
+.doc
+.doc container
+container | .doc
+container | from alpine | with-exec apk add openssh git | .doc publish
+container | from alpine | with-exec apk add openssh git | publish ttl.sh/my-image
+directory | with-new-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | head | tree | file README.md)
+directory | with-new-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | tags | tree | file README.md | contents)
+http https://news.ycombinator.com | contents
+directory | with-new-file hello.txt "hello world" | file hello.txt | .doc
+directory | with-new-file hello.txt "hello world" | file hello.txt | contents
+container | from index.docker.io/golang | with-directory /src $(.git https://github.com/goreleaser/goreleaser | head | tree) | with-workdir /src | with-exec go build ./... | directory ./bin
+.doc github.com/dagger/dagger/modules/go
+github.com/dagger/dagger/modules/go $(git https://github.com/goreleaser/goreleaser | head | tree) | .doc
+.doc github.com/dagger/dagger/cmd/dagger
+github.com/dagger/dagger/cmd/dagger | binary --platform=darwin/arm64
+.doc github.com/cubzh/cubzh
 
-- .use github.com/dagger/dagger; .doc; .use github.com/cubzh/cubzh; .doc
+# Load module directly from address:
+github.com/cubzh/cubzh | .doc
+
+# Load module directly from address, inspect its contents, then build a pipeline
+github.com/shykes/x/termcast | .doc
+github.com/shykes/x/termcast | exec 'ls -l' | exec 'curl https://lemonde.fr' | gif
+git https://github.com/kpenfound/dagger-modules | head | tree | glob '**'
+
+github.com/shykes/x | .deps
+github.com/shykes/x | wolfi | .doc
+github.com/shykes/x | python | .doc
+github.com/shykes/x | svix | .doc
+github.com/shykes/x | kafka | .doc
 </knowledge>
 `
 
