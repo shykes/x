@@ -5,6 +5,8 @@ import (
 	"context"
 	"path"
 	"strings"
+
+	"tmate/internal/dagger"
 )
 
 const (
@@ -13,9 +15,15 @@ const (
 )
 
 // A release of the Tmate software
-func (t *Tmate) Release(version Optional[string]) *Release {
+func (t *Tmate) Release(
+	// +optional
+	version string,
+) *Release {
+	if version == "" {
+		version = defaultVersion
+	}
 	return &Release{
-		Version: version.GetOr(defaultVersion),
+		Version: version,
 	}
 }
 
@@ -26,7 +34,7 @@ type Release struct {
 }
 
 // The source code for this release
-func (r *Release) Source() *Directory {
+func (r *Release) Source() *dagger.Directory {
 	return dag.
 		Git("https://github.com/tmate-io/tmate.git").
 		Tag(r.Version).
@@ -34,7 +42,7 @@ func (r *Release) Source() *Directory {
 }
 
 // A static build of Tmate
-func (r *Release) StaticBinary() *File {
+func (r *Release) StaticBinary() *dagger.File {
 	// FIXME: replace Dockerfile with pure Go
 	// FIXME: platform argument
 	return r.Source().DockerBuild().File("tmate")
@@ -45,22 +53,30 @@ func (r *Release) StaticBinary() *File {
 // Arguments:
 //   - `base` (optional): custom base container
 //   - `binPath` the path where the tmate static binary will be installed. Default: /usr/bin
-func (r *Release) Container(base Optional[*Container], binPath Optional[string]) *Container {
-	var ctr *Container
-	if baseCtr := base.GetOr(nil); baseCtr != nil {
-		path := binPath.GetOr(defaultBinPath) + "/tmate"
-		ctr = baseCtr.WithFile(path, r.StaticBinary())
+func (r *Release) Container(
+	// +optional
+	base *dagger.Container,
+	// +optional
+	// +default="/usr/bin"
+	binPath string,
+) *dagger.Container {
+	var ctr *dagger.Container
+	if base != nil {
+		path := binPath
+		if path == "" {
+			path = defaultBinPath
+		}
+		path += "/tmate"
+		ctr = base.WithFile(path, r.StaticBinary())
 	} else {
 		ctr = r.dynamicBuild()
 	}
-	return ctr.
-		WithEntrypoint([]string{"tmate"}).
-		WithDefaultArgs(ContainerWithDefaultArgsOpts{Args: []string{}})
+	return ctr.WithDefaultArgs([]string{"tmate"})
 }
 
 // Build the dynamic tmate binary, and return the whole build environmnent,
 // with the tmate source as working directory.
-func (r *Release) dynamicBuild() *Container {
+func (r *Release) dynamicBuild() *dagger.Container {
 	preBuild := dag.
 		Container().
 		From("ubuntu").
@@ -90,7 +106,7 @@ func (r *Release) dynamicBuild() *Container {
 }
 
 // A build of tmate as a dynamically linked binary + required libraries
-func (r *Release) Dynamic(ctx context.Context) (*Directory, error) {
+func (r *Release) Dynamic(ctx context.Context) (*dagger.Directory, error) {
 	// Execute the build and keep the full build environment
 	buildEnv := r.dynamicBuild()
 	// Extract dynamic libraries
@@ -110,7 +126,7 @@ func (r *Release) Dynamic(ctx context.Context) (*Directory, error) {
 
 // A utility that extracts dynamic libraries required by a binary
 // Note: the container must have the `ldd` utility installed
-func dynLibs(ctx context.Context, ctr *Container, binary string) (*Directory, error) {
+func dynLibs(ctx context.Context, ctr *dagger.Container, binary string) (*dagger.Directory, error) {
 	// FIXME: inspect the binary contents in pure Go instead of shelling out to ldd
 	ldd, err := ctr.WithExec([]string{"ldd", binary}).Stdout(ctx)
 	if err != nil {
