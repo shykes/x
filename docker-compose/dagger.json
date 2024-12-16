@@ -1,6 +1,6 @@
 {
   "name": "docker-compose",
+  "engineVersion": "v0.15.1",
   "sdk": "go",
-  "source": ".",
-  "engineVersion": "v0.10.0"
+  "source": "."
 }

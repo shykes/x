@@ -18,6 +18,8 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"docker-compose/internal/dagger"
+
 	"github.com/compose-spec/compose-go/loader"
 	"github.com/compose-spec/compose-go/types"
 	"gopkg.in/yaml.v3"
@@ -35,7 +37,7 @@ func (c *DockerCompose) Example() *Project {
 func (c *DockerCompose) Project(
 	// The project directory
 	// +optional
-	source *Directory,
+	source *dagger.Directory,
 ) *Project {
 	if source == nil {
 		source = dag.Directory()
@@ -47,10 +49,10 @@ func (c *DockerCompose) Project(
 type Project struct {
 	// The project's source directory
 	// +private
-	Source *Directory
+	Source *dagger.Directory
 }
 
-func (p *Project) ConfigFile() *File {
+func (p *Project) ConfigFile() *dagger.File {
 	return p.Source.File("docker-compose.yml")
 }
 
@@ -133,21 +135,21 @@ func (s *ComposeService) Config(ctx context.Context) (string, error) {
 
 // The container for this docker compose service, without compose-specific
 // modifications
-func (s *ComposeService) BaseContainer(ctx context.Context) (*Container, error) {
+func (s *ComposeService) BaseContainer(ctx context.Context) (*dagger.Container, error) {
 	spec, err := s.spec(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var ctr *Container
+	var ctr *dagger.Container
 	// 1. Either build or pull the base image
 	if build := spec.Build; build != nil {
-		var src *Directory
+		var src *dagger.Directory
 		if build.Context != "" {
 			src = s.Project.Source.Directory(build.Context)
 		} else {
 			src = s.Project.Source
 		}
-		var opts ContainerBuildOpts
+		var opts dagger.ContainerBuildOpts
 		if build.Dockerfile != "" {
 			opts.Dockerfile = build.Dockerfile
 		}
@@ -170,7 +172,7 @@ func (s *ComposeService) BaseContainer(ctx context.Context) (*Container, error) 
 	for _, port := range ports {
 		var (
 			number int
-			opts   ContainerWithExposedPortOpts
+			opts   dagger.ContainerWithExposedPortOpts
 			err    error
 		)
 		opts.Protocol, err = port.Protocol(ctx)
@@ -191,7 +193,7 @@ func (s *ComposeService) BaseContainer(ctx context.Context) (*Container, error) 
 }
 
 // Bring the compose service up, running its container directly on the Dagger Engine
-func (s *ComposeService) Up(ctx context.Context) (*Service, error) {
+func (s *ComposeService) Up(ctx context.Context) (*dagger.Service, error) {
 	ctr, err := s.Container(ctx)
 	if err != nil {
 		return nil, err
@@ -200,7 +202,7 @@ func (s *ComposeService) Up(ctx context.Context) (*Service, error) {
 }
 
 // The container for this service
-func (s *ComposeService) Container(ctx context.Context) (*Container, error) {
+func (s *ComposeService) Container(ctx context.Context) (*dagger.Container, error) {
 	spec, err := s.spec(ctx)
 	if err != nil {
 		return nil, err
@@ -214,12 +216,12 @@ func (s *ComposeService) Container(ctx context.Context) (*Container, error) {
 	// FIXME: host mapping information will be lost.
 	//   how to preserve that end-user convenience without breaking sandboxing?
 	for _, portConfig := range spec.Ports {
-		var opts ContainerWithExposedPortOpts
+		var opts dagger.ContainerWithExposedPortOpts
 		switch strings.ToUpper(portConfig.Protocol) {
 		case "TCP":
-			opts.Protocol = Tcp
+			opts.Protocol = dagger.NetworkProtocolTcp
 		case "UDP":
-			opts.Protocol = Udp
+			opts.Protocol = dagger.NetworkProtocolUdp
 		}
 		ctr = ctr.WithExposedPort(int(portConfig.Target), opts)
 	}
