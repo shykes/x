@@ -1,12 +1,13 @@
 {
   "name": "tailscale",
+  "engineVersion": "v0.15.1",
   "sdk": "go",
   "dependencies": [
     {
       "name": "wolfi",
-      "source": "github.com/shykes/daggerverse/wolfi@800f63130092f8ff0251908470bd47f7b6d8b3a5"
+      "source": "github.com/dagger/dagger/modules/wolfi",
+      "pin": "8bea631db61b6a1e956df8776af9abb857d478bc"
     }
   ],
-  "source": ".",
-  "engineVersion": "v0.11.9"
+  "source": "."
 }

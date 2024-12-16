@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"context"
 	"html/template"
+
+	"tailscale/internal/dagger"
 )
 
 const (
@@ -26,9 +28,9 @@ func (m *Tailscale) Proxy(
 	// Backend for the proxy. All ports will be forwarded.
 	// if not specifed, a default test backend is used.
 	// +optional
-	backend *Service,
+	backend *dagger.Service,
 	// Tailscale authentication key
-	key *Secret,
+	key *dagger.Secret,
 ) *Proxy {
 	if backend == nil {
 		backend = defaultBackend
@@ -45,13 +47,13 @@ type Proxy struct {
 	// Hostname of the proxy on the tailscale network
 	Hostname string
 	// Tailscale authentication key to register the proxy
-	Key *Secret
+	Key *dagger.Secret
 	// Backend of the proxy. All exposed ports are also exposed on the proxy.
-	Backend *Service
+	Backend *dagger.Service
 }
 
 // Return a list of the backend's exposed ports'
-func (p *Proxy) BackendPorts(ctx context.Context) ([]Port, error) {
+func (p *Proxy) BackendPorts(ctx context.Context) ([]dagger.Port, error) {
 	// FIXME: manual start should not be needed, workaround for host services
 	backend, err := p.Backend.Start(ctx)
 	if err != nil {
@@ -66,7 +68,7 @@ func (p *Proxy) BackendPorts(ctx context.Context) ([]Port, error) {
 
 // An individual port forward rule
 type ProxyRule struct {
-	Protocol     NetworkProtocol
+	Protocol     dagger.NetworkProtocol
 	FrontendPort int
 	BackendPort  int
 	BackendHost  string
@@ -125,18 +127,18 @@ func (p *Proxy) Up(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = ctr.
-		WithExec([]string{"/usr/local/bin/ts-gateway"}).
+	return ctr.
+		WithDefaultArgs([]string{"/usr/local/bin/ts-gateway"}).
 		AsService().
 		Up(ctx)
 	return err
 }
 
 // Convert the proxy to a ready-to-run container
-func (p *Proxy) Container(ctx context.Context) (*Container, error) {
+func (p *Proxy) Container(ctx context.Context) (*dagger.Container, error) {
 	ctr := dag.
 		Wolfi().
-		Container(WolfiContainerOpts{
+		Container(dagger.WolfiContainerOpts{
 			Packages: []string{"tailscale", "socat"},
 		}).
 		WithEnvVariable("TAILSCALE_HOSTNAME", p.Hostname).
@@ -164,14 +166,11 @@ func (p *Proxy) Container(ctx context.Context) (*Container, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctr = ctr.WithNewFile("/usr/local/bin/ts-proxy", ContainerWithNewFileOpts{
+	ctr = ctr.WithNewFile("/usr/local/bin/ts-proxy", proxyScript, dagger.ContainerWithNewFileOpts{
 		Permissions: 0755,
-		Contents:    proxyScript,
 	})
 
-	ctr = ctr.WithNewFile("/usr/local/bin/ts-gateway", ContainerWithNewFileOpts{
-		Permissions: 0755,
-		Contents: `#!/bin/sh
+	ctr = ctr.WithNewFile("/usr/local/bin/ts-gateway", `#!/bin/sh
 set -ex
 
 tailscaled --tun=userspace-networking --socks5-server=localhost:1055 &
@@ -179,7 +178,8 @@ tailscale login --hostname "$TAILSCALE_HOSTNAME" --authkey "$TAILSCALE_AUTHKEY"
 trap 'echo "Logging out..."; tailscale logout' SIGINT
 tailscale up
 /usr/local/bin/ts-proxy
-`,
+`, dagger.ContainerWithNewFileOpts{
+		Permissions: 0755,
 	})
 	return ctr, nil
 }
