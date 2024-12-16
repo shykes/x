@@ -4,9 +4,9 @@
   "sdk": "go",
   "dependencies": [
     {
-      "name": "golangci",
-      "source": "github.com/dagger/dagger/modules/golangci",
-      "pin": "8bea631db61b6a1e956df8776af9abb857d478bc"
+      "name": "hello",
+      "source": "github.com/shykes/hello",
+      "pin": "2d789671a44c4d559be506a9bc4b71b0ba6e23c9"
     },
     {
       "name": "alpine",
@@ -61,8 +61,9 @@
       "pin": "8bea631db61b6a1e956df8776af9abb857d478bc"
     },
     {
-      "name": "hello",
-      "source": "hello"
+      "name": "golangci",
+      "source": "github.com/dagger/dagger/modules/golangci",
+      "pin": "8bea631db61b6a1e956df8776af9abb857d478bc"
     },
     {
       "name": "helm",
