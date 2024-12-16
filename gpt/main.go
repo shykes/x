@@ -242,6 +242,7 @@ func (m Gpt) Ask(
 	// A prompt telling Daggy what to do
 	prompt string,
 	// +optional
+	// +default=true
 	knowledge bool,
 ) (out Gpt, rerr error) {
 	if knowledge {
