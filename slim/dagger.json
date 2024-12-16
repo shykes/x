@@ -1,5 +1,6 @@
 {
   "name": "slim",
+  "engineVersion": "v0.15.1",
   "sdk": "go",
   "dependencies": [
     {
@@ -7,6 +8,5 @@
       "source": "../docker"
     }
   ],
-  "source": ".",
-  "engineVersion": "v0.11.9"
+  "source": "."
 }

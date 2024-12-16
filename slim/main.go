@@ -2,15 +2,17 @@ package main
 
 import (
 	"context"
+
+	"slim/internal/dagger"
 )
 
 type Slim struct{}
 
 // Slim down a container
-func (s *Slim) Slim(ctx context.Context, container *Container) (*Container, error) {
+func (s *Slim) Slim(ctx context.Context, container *dagger.Container) (*dagger.Container, error) {
 	// Start an ephemeral dockerd
 	dockerd := dag.Docker().Engine()
-	docker := dag.Docker().Cli(DockerCliOpts{
+	docker := dag.Docker().Cli(dagger.DockerCliOpts{
 		Engine: dockerd,
 	})
 	// Load the input container into the dockerd
@@ -37,13 +39,13 @@ func (s *Slim) Slim(ctx context.Context, container *Container) (*Container, erro
 		return container, err
 	}
 	// Extract the resulting image back into a container
-	return docker.Image(DockerCliImageOpts{
+	return docker.Image(dagger.DockerCliImageOpts{
 		Repository: "slim-output",
 		Tag:        "latest",
 	}).Export(), nil
 }
 
-func (s *Slim) Compare(ctx context.Context, container *Container) (*Container, error) {
+func (s *Slim) Compare(ctx context.Context, container *dagger.Container) (*dagger.Container, error) {
 	slimmed, err := s.Slim(ctx, container)
 	if err != nil {
 		return nil, err
