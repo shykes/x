@@ -1,4 +1,5 @@
 {
   "name": "ollama",
-  "sdk": "python"
+  "engineVersion": "v0.15.2-241213122156-63636db470c7",
+  "sdk": "go"
 }
