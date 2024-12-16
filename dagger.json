@@ -1,13 +1,8 @@
 {
   "name": "x",
-  "engineVersion": "v0.15.2-241213122156-63636db470c7",
+  "engineVersion": "v0.15.1",
   "sdk": "go",
   "dependencies": [
-    {
-      "name": "hello",
-      "source": "github.com/shykes/hello",
-      "pin": "2d789671a44c4d559be506a9bc4b71b0ba6e23c9"
-    },
     {
       "name": "alpine",
       "source": "github.com/dagger/dagger/modules/alpine",
@@ -27,6 +22,11 @@
       "name": "browserify",
       "source": "github.com/vito/daggerverse/browserify",
       "pin": "94248510329310952e8a1661e2745657bcac7ac8"
+    },
+    {
+      "name": "clickhouse",
+      "source": "github.com/shykes/clickhouse",
+      "pin": "8a8ceca32643776f8e60fbea2122265b8b4fdd41"
     },
     {
       "name": "concourse",
@@ -64,6 +64,11 @@
       "name": "golangci",
       "source": "github.com/dagger/dagger/modules/golangci",
       "pin": "8bea631db61b6a1e956df8776af9abb857d478bc"
+    },
+    {
+      "name": "hello",
+      "source": "github.com/shykes/hello",
+      "pin": "2d789671a44c4d559be506a9bc4b71b0ba6e23c9"
     },
     {
       "name": "helm",
