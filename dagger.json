@@ -144,6 +144,11 @@
       "source": "tmate"
     },
     {
+      "name": "wolfi",
+      "source": "github.com/dagger/dagger/modules/wolfi",
+      "pin": "8bea631db61b6a1e956df8776af9abb857d478bc"
+    },
+    {
       "name": "xcaddy",
       "source": "github.com/sagikazarmark/daggerverse/xcaddy",
       "pin": "c1be27189ce47d28f84014b715f78e47db9fbadc"
