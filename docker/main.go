@@ -47,7 +47,7 @@ func (e *Docker) Engine(
 			volumeName = volumeName + "-" + namespace
 		}
 		volume := dag.CacheVolume(volumeName)
-		opts := dagger.ContainerWithMountedCacheOpts{Sharing: dagger.Locked}
+		opts := dagger.ContainerWithMountedCacheOpts{Sharing: dagger.CacheSharingModeLocked}
 		ctr = ctr.WithMountedCache("/var/lib/docker", volume, opts)
 	}
 	return ctr.
