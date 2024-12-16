@@ -56,6 +56,20 @@ github.com/shykes/x | wolfi | .doc
 github.com/shykes/x | python | .doc
 github.com/shykes/x | svix | .doc
 github.com/shykes/x | kafka | .doc
+
+# Bash syntax means the usual quoting rules apply:
+foo=bar; directory | with-new-file joke.txt "two programmers meet in a $foo" | with-new-file script.sh 'echo "my user is $USER"'
+
+# with-exec has args within args. use -- judiciously:
+container | from alpine | with-exec ls -- -l
+
+# most dockerfile commands have an equivalent, but not always named the same. explore!
+container | .doc
+container | with-default-args bash -- -l
+
+# ephemeral services are great for containerizing test environments
+container | from alpine | with-service-binding www $(container | from nginx | with-exposed-port 80) | with-exec curl www | stdout
+
 </knowledge>
 `
 
