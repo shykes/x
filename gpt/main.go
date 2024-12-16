@@ -163,7 +163,6 @@ func (m Gpt) loadHistory() []openai.ChatCompletionMessageParamUnion {
 				Content:   text,
 				ToolCalls: calls,
 			})
-			m.LastReply = text
 		default:
 			fmt.Printf("OTHER: %v\n", msg)
 		}
@@ -185,7 +184,8 @@ func (m Gpt) saveHistory(history []openai.ChatCompletionMessageParamUnion) Gpt {
 func (m Gpt) withReply(message openai.ChatCompletionMessage) Gpt {
 	hist := m.loadHistory()
 	hist = append(hist, message)
-	m.DebugLog = append(m.DebugLog, "ASSISTANT: "+message.Content)
+	m.DebugLog = append(m.DebugLog, fmt.Sprintf("ASSISTANT: %v", message))
+	m.LastReply = message.Content
 	return m.saveHistory(hist)
 }
 
