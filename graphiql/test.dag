@@ -1,0 +1,35 @@
+#!/usr/bin/env dagger shell
+
+ctr() {
+	container |
+	from alpine |
+	with-file /bin/dagger $(github.com/dagger/dagger/cmd/dagger | binary)
+}
+
+session() {
+	ctr |
+	with-exposed-port 8080 |
+	with-env-variable DAGGER_SESSION_TOKEN onedag |
+	with-default-args -- dagger listen --listen 0.0.0.0:8080 --allow-cors |
+    as-service --experimental-privileged-nesting
+}
+
+client() {
+	ctr |
+	with-exec apk add curl |
+	with-service-binding dagger $(session)
+}
+
+app() {
+    container |
+    from node |
+    with-workdir /app |
+    with-directory . $(host | directory .) |
+    with-exec npm update |
+    with-exec npm install |
+#    with-service-binding dagger $(session) |
+    with-default-args node graphiql.js http://onedag:@dagger:8080/query |
+    with-exposed-port 4000
+}
+
+app | up
