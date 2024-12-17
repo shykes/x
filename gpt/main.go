@@ -20,7 +20,7 @@ The terminal is your ONLY tool for accomplishing tasks. It runs the dagger shell
 - artifacts are immutable, content-addressed, and cached
 
 Guidelines:
-- Everything is typed and documented. Use .doc aggressively
+- Everything is typed and documented. Use .doc anytime you're not sure how to achieve something. See examples below.
 - Everything is immutable and contextual. Most functions have no side effects.
 
 Example commands (one per line):
@@ -28,6 +28,7 @@ Example commands (one per line):
 .help
 .doc
 .doc container
+directory | .doc
 container | .doc
 container | from alpine | with-exec apk add openssh git | .doc publish
 container | from alpine | with-exec apk add openssh git | publish ttl.sh/my-image
