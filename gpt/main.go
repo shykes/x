@@ -131,10 +131,9 @@ type Gpt struct {
 	Model        ModelName
 	Token        *dagger.Secret // +private
 	HistoryJSON  string         // +private
-	DebugLog     []string
+	Log          []string
 	ShellHistory []Command
-	//	history     []openai.ChatCompletionMessageParamUnion
-	LastReply string
+	LastReply    string
 }
 
 func (m Gpt) History() string {
@@ -142,10 +141,9 @@ func (m Gpt) History() string {
 }
 
 type Message struct {
-	Role    string      `json:"role", required`
-	Content interface{} `json:"content", required`
-	//Content    []map[string]interface{} `json:"content", required`
-	ToolCallID string `json:"tool_call_id"`
+	Role       string      `json:"role", required`
+	Content    interface{} `json:"content", required`
+	ToolCallID string      `json:"tool_call_id"`
 	ToolCalls  []struct {
 		// The ID of the tool call.
 		ID string `json:"id"`
@@ -188,7 +186,6 @@ func (msg Message) Text() (string, error) {
 }
 
 func (m Gpt) loadHistory() []openai.ChatCompletionMessageParamUnion {
-	fmt.Printf("loadHistory(%s)...\n", m.HistoryJSON)
 	if m.HistoryJSON == "" {
 		return nil
 	}
@@ -201,21 +198,12 @@ func (m Gpt) loadHistory() []openai.ChatCompletionMessageParamUnion {
 	for _, msg := range raw {
 		switch msg.Role {
 		case "user":
-			fmt.Printf("loading history entry: USER: %v\n", msg)
-			//var text string
-			//if len(msg.Content) > 0 {
-			//	if v, ok := msg.Content[0]["text"]; ok {
-			//		text = v.(string)
-			//	}
-			//}
 			text, err := msg.Text()
 			if err != nil {
 				panic(err)
 			}
 			history = append(history, openai.UserMessage(text))
-			fmt.Printf("USER: %v\n", msg)
 		case "tool":
-			// history = append(history, openai.ToolMessage(msg.ToolCallID, msg.Content[0]["text"].(string)))
 			text, err := msg.Text()
 			if err != nil {
 				panic(err)
@@ -242,11 +230,8 @@ func (m Gpt) loadHistory() []openai.ChatCompletionMessageParamUnion {
 				Content:   text,
 				ToolCalls: calls,
 			})
-		default:
-			fmt.Printf("OTHER: %v\n", msg)
 		}
 	}
-	fmt.Printf("loadHistory(%s) -> %v\n", m.HistoryJSON, history)
 	return history
 }
 
@@ -256,14 +241,13 @@ func (m Gpt) saveHistory(history []openai.ChatCompletionMessageParamUnion) Gpt {
 		panic(err)
 	}
 	m.HistoryJSON = string(data)
-	fmt.Printf("saveHistory(%v) -> %v\n", history, m.HistoryJSON)
 	return m
 }
 
 func (m Gpt) withReply(message openai.ChatCompletionMessage) Gpt {
 	hist := m.loadHistory()
 	hist = append(hist, message)
-	m.DebugLog = append(m.DebugLog, fmt.Sprintf("ASSISTANT: %v", message))
+	m.Log = append(m.Log, fmt.Sprintf("ASSISTANT: %s", message.Content))
 	m.LastReply = message.Content
 	return m.saveHistory(hist)
 }
@@ -271,21 +255,20 @@ func (m Gpt) withReply(message openai.ChatCompletionMessage) Gpt {
 func (m Gpt) WithToolOutput(callId, content string) Gpt {
 	hist := m.loadHistory()
 	hist = append(hist, openai.ToolMessage(callId, content))
-	m.DebugLog = append(m.DebugLog, "TOOL "+callId+": "+content)
+	m.Log = append(m.Log, fmt.Sprintf("TOOL CALL: #%s: %s", callId, content))
 	return m.saveHistory(hist)
 }
 
 func (m Gpt) WithPrompt(prompt string) Gpt {
-	fmt.Printf("WithPrompt(%v)\n", prompt)
 	hist := m.loadHistory()
 	hist = append(hist, openai.UserMessage(prompt))
-	m.DebugLog = append(m.DebugLog, "USER: "+prompt)
+	m.Log = append(m.Log, "USER: "+prompt)
 	return m.saveHistory(hist)
 }
 
 func (m Gpt) Ask(
 	ctx context.Context,
-	// A prompt telling Daggy what to do
+	// The message to send the model
 	prompt string,
 	// +optional
 	// +default=true
@@ -313,7 +296,7 @@ func (m Gpt) Ask(
 			if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
 				return m, err
 			}
-			fmt.Printf("--> %s(%s)\n", call.Function.Name, args)
+			m.Log = append(m.Log, fmt.Sprintf("TOOL CALL: %s(%s) #%s", call.Function.Name, args, call.ID))
 			switch call.Function.Name {
 			case "give-up":
 				return m, nil
