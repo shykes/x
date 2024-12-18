@@ -8,11 +8,24 @@ import (
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
+	"go.opentelemetry.io/otel/codes"
 )
 
-const systemPrompt = `
-<knowledge name="terminal">
-The terminal is your ONLY tool for accomplishing tasks. It runs the dagger shell, which features:
+func New(
+	// OpenAI API token
+	token *dagger.Secret,
+	// OpenAI model
+	// +optional
+	// +default="gpt-4o"
+	model ModelName,
+) Gpt {
+	return Gpt{
+		Token: token,
+		Model: model,
+	}.WithKnowledge(
+		"terminal",
+		"basic information about using the terminal",
+		`The terminal is your ONLY tool for accomplishing tasks. It runs the dagger shell, which features:
 
 - a bash-compatible syntax,
 - backed by a container engine with a declarative API.
@@ -22,8 +35,114 @@ The terminal is your ONLY tool for accomplishing tasks. It runs the dagger shell
 Guidelines:
 - Everything is typed and documented. Use .doc anytime you're not sure how to achieve something. See examples below.
 - Everything is immutable and contextual. Most functions have no side effects.
+`).
+		WithKnowledge(
+			"shell-exploration",
+			"how to explore the shell, find available commands",
+			`
+The builtin '.help' shows available builtins
 
-Example commands (one per line):
+The builtin '.doc' prints available commands (functions) in the current scope.
+
+.doc can be inserted in a pipeline, to see what's available at that stage of the pipeline.
+
+'.doc FOO' will print detailed information about the function FOO.
+Use this to list available arguments and their type.
+
+Objects are typed. .doc includes the name of the current object in scope.
+
+Examples (one command per line):
+
+.help
+.doc
+.doc container
+container | .doc
+container | from alpine
+`).
+		WithKnowledge(
+			"shell-git",
+			"how to interact with git repositories in the dagger shell",
+			`
+The core function 'git' can interact with git remotes.
+Use the usual shell exploration techniques to discover the exact API.
+
+Examples:
+
+git https://github.com/goreleaser/goreleaser | head | tree
+git https://github.com/dagger/dagger | tags
+git https://github.com/cubzh/cubzh | branch main | commit
+git https://github.com/kpenfound/dagger-modules | head | tree | glob '**'
+`).
+		WithKnowledge(
+			"shell-sub-pipelines",
+			"how to compose several pipelines in the dagger shell, use the output of one pipeline as argument to another",
+			`
+For sub-pipelines, dagger shell uses the usual bash syntax for sub-commands: $()
+
+Of course this is Dagger, so instead of raw text streams flowing through the pipelines, it's typed objects.
+
+Examples:
+
+container | from index.docker.io/golang | with-directory /src $(.git https://github.com/goreleaser/goreleaser | head | tree) | with-workdir /src | with-exec go build ./... | directory ./bin
+directory | with-new-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | tags | tree | file README.md | contents)
+`).
+		WithKnowledge("shell-errors", "getting useful errors in the shell", `
+Sometimes the dagger shell produces errors that are not super useful. Here are some tips for managing that:
+
+If the error comes from with-exec, and it just tells you the exit code without giving stderr:
+you can get the actual stderr by running:
+
+<YOUR PIPELINE> | with-exec YOUR COMMAND --expect=ANY | stderr
+
+This will bypass dagger's default handling of non-zero exit codes: instead of aborting on non-zero,
+with-exec will continue the pipeline and let you query standard error
+			`).
+		WithKnowledge(
+			"using-modules",
+			"how to use modules to extend dagger shell with more functions and types",
+			`
+To extend your shell with new capabilities, use modules.
+
+A module is just a source directory (local or remote via git) that dagger knows how to load
+functions and types from.
+
+To use a module, simply use its address as a command. For example:
+
+<example>
+# Assuming a module is at the local path ./foo
+./foo | .doc
+./foo | my-func MYARG --MYFLAG=VALUE
+</example>
+
+<example>
+github.com/dagger/dagger/modules/go $(git https://github.com/dagger/dagger) | build ./cmd/dagger
+</example>
+
+<example>
+github.com/shykes/hello | .doc
+github.com/shykes/hello | hello --name=alice --greeting=hi
+</example>
+
+Modules can be composed in the same pipeline:
+
+<example>
+github.com/dagger/dagger/modules/wolfi | container | with-file $(github.com/dagger/dagger/cmd/dagger | binary) | with-exec dagger version | stdout
+</example>
+
+A module is loaded by a constructor function, which returns an object type.
+That object can itself have more functions, etc.
+
+To inspect the module's constructor, use .doc
+
+<example>
+.doc github.com/dagger/dagger/modules/go
+</example>
+
+`).
+		WithKnowledge(
+			"shell-examples",
+			"Various examples of using the dagger shell",
+			`
 
 .help
 .doc
@@ -70,22 +189,7 @@ container | with-default-args bash -- -l
 
 # ephemeral services are great for containerizing test environments
 container | from alpine | with-service-binding www $(container | from nginx | with-exposed-port 80) | with-exec curl www | stdout
-
-</knowledge>
-`
-
-func New(
-	// OpenAI API token
-	token *dagger.Secret,
-	// OpenAI model
-	// +optional
-	// +default="gpt-4o"
-	model ModelName,
-) Gpt {
-	return Gpt{
-		Token: token,
-		Model: model,
-	}
+`)
 }
 
 type ModelName = string
@@ -295,13 +399,7 @@ func (m Gpt) Ask(
 	ctx context.Context,
 	// The message to send the model
 	prompt string,
-	// +optional
-	// +default=true
-	knowledge bool,
 ) (out Gpt, rerr error) {
-	if knowledge {
-		m = m.WithPrompt(systemPrompt)
-	}
 	m = m.WithPrompt(prompt)
 	for {
 		q, err := m.oaiQuery(ctx)
