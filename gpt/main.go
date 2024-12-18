@@ -426,6 +426,7 @@ func (m Gpt) Ask(
 				if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
 					return m, err
 				}
+				ctx, span := Tracer().Start(ctx, "🤖⌨️ "+args["command"].(string))
 				result, err := m.toolRun(ctx, args["command"].(string))
 				if err != nil {
 					return m, err
@@ -438,19 +439,36 @@ func (m Gpt) Ask(
 				cmd := Command{
 					Command: args["command"].(string),
 				}
+				//				span.SetAttributes(
+				//					attribute.KeyValue{
+				//						Key:   "stdout",
+				//						Value: attribute.StringValue(result.Stdout),
+				//					},
+				//					attribute.KeyValue{
+				//						Key:   "stderr",
+				//						Value: attribute.StringValue(result.Stdout),
+				//					},
+				//				)
 				if result.ExitCode == 0 {
 					cmd.Success = true
 					cmd.Result = result.Stdout
+					span.SetStatus(codes.Ok, cmd.Result)
 				} else {
 					cmd.Success = false
 					cmd.Error = result.Stderr
+					span.SetStatus(codes.Error, cmd.Error)
 				}
+				span.End()
 				m.ShellHistory = append(m.ShellHistory, cmd)
+
 			default:
 				knowledge, err := m.Knowledge(call.Function.Name)
 				if err != nil {
 					return m, err
 				}
+				_, span := Tracer().Start(ctx, "🤖📚 "+knowledge.Name+": "+knowledge.Description)
+				span.SetStatus(codes.Ok, knowledge.Contents)
+				span.End()
 				m = m.WithToolOutput(call.ID, knowledge.Contents)
 			}
 		}
