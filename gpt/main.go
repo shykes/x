@@ -128,12 +128,37 @@ const (
 )
 
 type Gpt struct {
-	Model        ModelName
-	Token        *dagger.Secret // +private
-	HistoryJSON  string         // +private
-	Log          []string
-	ShellHistory []Command
-	LastReply    string
+	Model         ModelName
+	Token         *dagger.Secret // +private
+	HistoryJSON   string         // +private
+	Log           []string
+	ShellHistory  []Command
+	LastReply     string
+	KnowledgeBase []Knowledge
+}
+
+type Knowledge struct {
+	Name        string
+	Description string
+	Contents    string
+}
+
+func (m Gpt) WithKnowledge(name, description, contents string) Gpt {
+	m.KnowledgeBase = append(m.KnowledgeBase, Knowledge{
+		Name:        name,
+		Description: description,
+		Contents:    contents,
+	})
+	return m
+}
+
+func (m Gpt) Knowledge(name string) (*Knowledge, error) {
+	for _, knowledge := range m.KnowledgeBase {
+		if knowledge.Name == name {
+			return &knowledge, nil
+		}
+	}
+	return nil, fmt.Errorf("no such knowledge: %s", name)
 }
 
 func (m Gpt) History() string {
@@ -323,6 +348,12 @@ func (m Gpt) Ask(
 					cmd.Error = result.Stderr
 				}
 				m.ShellHistory = append(m.ShellHistory, cmd)
+			default:
+				knowledge, err := m.Knowledge(call.Function.Name)
+				if err != nil {
+					return m, err
+				}
+				m = m.WithToolOutput(call.ID, knowledge.Contents)
 			}
 		}
 	}
@@ -339,28 +370,37 @@ func (m Gpt) oaiQuery(ctx context.Context) (*openai.ChatCompletion, error) {
 		option.WithAPIKey(key),
 		option.WithHeader("Content-Type", "application/json"),
 	)
+	runTool := openai.ChatCompletionToolParam{
+		Type: openai.F(openai.ChatCompletionToolTypeFunction),
+		Function: openai.F(openai.FunctionDefinitionParam{
+			Name:        openai.String("run"),
+			Description: openai.String("Execute a command in the terminal"),
+			Parameters: openai.F(openai.FunctionParameters{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"command": map[string]string{
+						"type": "string",
+					},
+				},
+				"required": []string{"command"},
+			}),
+		}),
+	}
+	tools := []openai.ChatCompletionToolParam{runTool}
+	for _, knowledge := range m.KnowledgeBase {
+		tools = append(tools, openai.ChatCompletionToolParam{
+			Type: openai.F(openai.ChatCompletionToolTypeFunction),
+			Function: openai.F(openai.FunctionDefinitionParam{
+				Name:        openai.String(knowledge.Name),
+				Description: openai.String(knowledge.Description),
+			}),
+		})
+	}
 	params := openai.ChatCompletionNewParams{
 		Seed:     openai.Int(0),
 		Model:    openai.F(openai.ChatModel(m.Model)),
 		Messages: openai.F(m.loadHistory()),
-		Tools: openai.F([]openai.ChatCompletionToolParam{
-			{
-				Type: openai.F(openai.ChatCompletionToolTypeFunction),
-				Function: openai.F(openai.FunctionDefinitionParam{
-					Name:        openai.String("run"),
-					Description: openai.String("Execute a command in the terminal"),
-					Parameters: openai.F(openai.FunctionParameters{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"command": map[string]string{
-								"type": "string",
-							},
-						},
-						"required": []string{"command"},
-					}),
-				}),
-			},
-		}),
+		Tools:    openai.F(tools),
 	}
 	return client.Chat.Completions.New(ctx, params)
 }
