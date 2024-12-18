@@ -298,10 +298,6 @@ func (m Gpt) Ask(
 			}
 			m.Log = append(m.Log, fmt.Sprintf("TOOL CALL: %s(%s) #%s", call.Function.Name, args, call.ID))
 			switch call.Function.Name {
-			case "give-up":
-				return m, nil
-			case "success":
-				return m, nil
 			case "run":
 				var args map[string]interface{}
 				if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
@@ -348,36 +344,6 @@ func (m Gpt) oaiQuery(ctx context.Context) (*openai.ChatCompletion, error) {
 		Model:    openai.F(openai.ChatModel(m.Model)),
 		Messages: openai.F(m.loadHistory()),
 		Tools: openai.F([]openai.ChatCompletionToolParam{
-			{
-				Type: openai.F(openai.ChatCompletionToolTypeFunction),
-				Function: openai.F(openai.FunctionDefinitionParam{
-					Name:        openai.String("success"),
-					Description: openai.String("Declare that you have succeeded in accomplishing the task"),
-					Parameters: openai.F(openai.FunctionParameters{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"comment": map[string]string{
-								"type": "string",
-							},
-						},
-					}),
-				}),
-			},
-			{
-				Type: openai.F(openai.ChatCompletionToolTypeFunction),
-				Function: openai.F(openai.FunctionDefinitionParam{
-					Name:        openai.String("give-up"),
-					Description: openai.String("Declare that you have giving up on accomplishing the task"),
-					Parameters: openai.F(openai.FunctionParameters{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"comment": map[string]string{
-								"type": "string",
-							},
-						},
-					}),
-				}),
-			},
 			{
 				Type: openai.F(openai.ChatCompletionToolTypeFunction),
 				Function: openai.F(openai.FunctionDefinitionParam{
