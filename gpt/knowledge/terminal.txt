@@ -1,4 +1,4 @@
-basic information about using the terminal
+how to use the terminal
 
 The terminal is your ONLY tool for accomplishing tasks. It runs the dagger shell, which features:
 

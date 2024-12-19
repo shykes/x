@@ -1,4 +1,4 @@
-getting useful errors in the shell
+How to get useful errors in the shell
 
 Sometimes the dagger shell produces errors that are not super useful. Here are some tips for managing that:
 
