@@ -27,11 +27,22 @@ func New(
 	// +optional
 	// +defaultPath=./knowledge
 	knowledgeDir *dagger.Directory,
+	// A system prompt to inject into the GPT context
+	// +optional
+	// +defaultPath="./system-prompt.txt"
+	systemPrompt *dagger.File,
 ) (Gpt, error) {
-	return Gpt{
+	gpt := Gpt{
 		Token: token,
 		Model: model,
-	}.WithKnowledgeDir(ctx, knowledgeDir)
+	}
+	prompt, err := systemPrompt.Contents(ctx)
+	if err != nil {
+		return gpt, err
+	}
+	return gpt.
+		WithPrompt(ctx, prompt).
+		WithKnowledgeDir(ctx, knowledgeDir)
 }
 
 func (gpt Gpt) WithKnowledgeDir(ctx context.Context, dir *dagger.Directory) (Gpt, error) {
