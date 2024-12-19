@@ -45,6 +45,16 @@ func New(
 		WithKnowledgeDir(ctx, knowledgeDir)
 }
 
+type Gpt struct {
+	Model         ModelName      // +private
+	Token         *dagger.Secret // +private
+	HistoryJSON   string         // +private
+	Log           []string
+	ShellHistory  []Command   // +private
+	LastReply     string      // +private
+	KnowledgeBase []Knowledge // +private
+}
+
 func (gpt Gpt) WithKnowledgeDir(ctx context.Context, dir *dagger.Directory) (Gpt, error) {
 	txtPaths, err := dir.Glob(ctx, "**/*.txt")
 	if err != nil {
@@ -77,55 +87,6 @@ func (gpt Gpt) WithKnowledgeDir(ctx context.Context, dir *dagger.Directory) (Gpt
 	return gpt, nil
 }
 
-type ModelName = string
-
-const (
-	ModelNameO1Preview                      ModelName = "o1-preview"
-	ModelNameO1Preview2024_09_12            ModelName = "o1-preview-2024-09-12"
-	ModelNameO1Mini                         ModelName = "o1-mini"
-	ModelNameO1Mini2024_09_12               ModelName = "o1-mini-2024-09-12"
-	ModelNameGPT4o                          ModelName = "gpt-4o"
-	ModelNameGPT4o2024_11_20                ModelName = "gpt-4o-2024-11-20"
-	ModelNameGPT4o2024_08_06                ModelName = "gpt-4o-2024-08-06"
-	ModelNameGPT4o2024_05_13                ModelName = "gpt-4o-2024-05-13"
-	ModelNameGPT4oRealtimePreview           ModelName = "gpt-4o-realtime-preview"
-	ModelNameGPT4oRealtimePreview2024_10_01 ModelName = "gpt-4o-realtime-preview-2024-10-01"
-	ModelNameGPT4oAudioPreview              ModelName = "gpt-4o-audio-preview"
-	ModelNameGPT4oAudioPreview2024_10_01    ModelName = "gpt-4o-audio-preview-2024-10-01"
-	ModelNameChatgpt4oLatest                ModelName = "chatgpt-4o-latest"
-	ModelNameGPT4oMini                      ModelName = "gpt-4o-mini"
-	ModelNameGPT4oMini2024_07_18            ModelName = "gpt-4o-mini-2024-07-18"
-	ModelNameGPT4Turbo                      ModelName = "gpt-4-turbo"
-	ModelNameGPT4Turbo2024_04_09            ModelName = "gpt-4-turbo-2024-04-09"
-	ModelNameGPT4_0125Preview               ModelName = "gpt-4-0125-preview"
-	ModelNameGPT4TurboPreview               ModelName = "gpt-4-turbo-preview"
-	ModelNameGPT4_1106Preview               ModelName = "gpt-4-1106-preview"
-	ModelNameGPT4VisionPreview              ModelName = "gpt-4-vision-preview"
-	ModelNameGPT4                           ModelName = "gpt-4"
-	ModelNameGPT4_0314                      ModelName = "gpt-4-0314"
-	ModelNameGPT4_0613                      ModelName = "gpt-4-0613"
-	ModelNameGPT4_32k                       ModelName = "gpt-4-32k"
-	ModelNameGPT4_32k0314                   ModelName = "gpt-4-32k-0314"
-	ModelNameGPT4_32k0613                   ModelName = "gpt-4-32k-0613"
-	ModelNameGPT3_5Turbo                    ModelName = "gpt-3.5-turbo"
-	ModelNameGPT3_5Turbo16k                 ModelName = "gpt-3.5-turbo-16k"
-	ModelNameGPT3_5Turbo0301                ModelName = "gpt-3.5-turbo-0301"
-	ModelNameGPT3_5Turbo0613                ModelName = "gpt-3.5-turbo-0613"
-	ModelNameGPT3_5Turbo1106                ModelName = "gpt-3.5-turbo-1106"
-	ModelNameGPT3_5Turbo0125                ModelName = "gpt-3.5-turbo-0125"
-	ModelNameGPT3_5Turbo16k0613             ModelName = "gpt-3.5-turbo-16k-0613"
-)
-
-type Gpt struct {
-	Model         ModelName
-	Token         *dagger.Secret // +private
-	HistoryJSON   string         // +private
-	Log           []string
-	ShellHistory  []Command
-	LastReply     string
-	KnowledgeBase []Knowledge
-}
-
 type Knowledge struct {
 	Name        string
 	Description string
@@ -148,10 +109,6 @@ func (m Gpt) Knowledge(name string) (*Knowledge, error) {
 		}
 	}
 	return nil, fmt.Errorf("no such knowledge: %s", name)
-}
-
-func (m Gpt) History() string {
-	return m.HistoryJSON
 }
 
 type Message struct {
@@ -446,3 +403,42 @@ func (m Gpt) toolRun(ctx context.Context, command string) (*toolRunResult, error
 		ExitCode: exitCode,
 	}, nil
 }
+
+type ModelName = string
+
+const (
+	ModelNameO1Preview                      ModelName = "o1-preview"
+	ModelNameO1Preview2024_09_12            ModelName = "o1-preview-2024-09-12"
+	ModelNameO1Mini                         ModelName = "o1-mini"
+	ModelNameO1Mini2024_09_12               ModelName = "o1-mini-2024-09-12"
+	ModelNameGPT4o                          ModelName = "gpt-4o"
+	ModelNameGPT4o2024_11_20                ModelName = "gpt-4o-2024-11-20"
+	ModelNameGPT4o2024_08_06                ModelName = "gpt-4o-2024-08-06"
+	ModelNameGPT4o2024_05_13                ModelName = "gpt-4o-2024-05-13"
+	ModelNameGPT4oRealtimePreview           ModelName = "gpt-4o-realtime-preview"
+	ModelNameGPT4oRealtimePreview2024_10_01 ModelName = "gpt-4o-realtime-preview-2024-10-01"
+	ModelNameGPT4oAudioPreview              ModelName = "gpt-4o-audio-preview"
+	ModelNameGPT4oAudioPreview2024_10_01    ModelName = "gpt-4o-audio-preview-2024-10-01"
+	ModelNameChatgpt4oLatest                ModelName = "chatgpt-4o-latest"
+	ModelNameGPT4oMini                      ModelName = "gpt-4o-mini"
+	ModelNameGPT4oMini2024_07_18            ModelName = "gpt-4o-mini-2024-07-18"
+	ModelNameGPT4Turbo                      ModelName = "gpt-4-turbo"
+	ModelNameGPT4Turbo2024_04_09            ModelName = "gpt-4-turbo-2024-04-09"
+	ModelNameGPT4_0125Preview               ModelName = "gpt-4-0125-preview"
+	ModelNameGPT4TurboPreview               ModelName = "gpt-4-turbo-preview"
+	ModelNameGPT4_1106Preview               ModelName = "gpt-4-1106-preview"
+	ModelNameGPT4VisionPreview              ModelName = "gpt-4-vision-preview"
+	ModelNameGPT4                           ModelName = "gpt-4"
+	ModelNameGPT4_0314                      ModelName = "gpt-4-0314"
+	ModelNameGPT4_0613                      ModelName = "gpt-4-0613"
+	ModelNameGPT4_32k                       ModelName = "gpt-4-32k"
+	ModelNameGPT4_32k0314                   ModelName = "gpt-4-32k-0314"
+	ModelNameGPT4_32k0613                   ModelName = "gpt-4-32k-0613"
+	ModelNameGPT3_5Turbo                    ModelName = "gpt-3.5-turbo"
+	ModelNameGPT3_5Turbo16k                 ModelName = "gpt-3.5-turbo-16k"
+	ModelNameGPT3_5Turbo0301                ModelName = "gpt-3.5-turbo-0301"
+	ModelNameGPT3_5Turbo0613                ModelName = "gpt-3.5-turbo-0613"
+	ModelNameGPT3_5Turbo1106                ModelName = "gpt-3.5-turbo-1106"
+	ModelNameGPT3_5Turbo0125                ModelName = "gpt-3.5-turbo-0125"
+	ModelNameGPT3_5Turbo16k0613             ModelName = "gpt-3.5-turbo-16k-0613"
+)
