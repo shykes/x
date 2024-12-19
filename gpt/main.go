@@ -373,10 +373,15 @@ func (m Gpt) saveHistory(history []openai.ChatCompletionMessageParamUnion) Gpt {
 	return m
 }
 
-func (m Gpt) withReply(message openai.ChatCompletionMessage) Gpt {
+func (m Gpt) withReply(ctx context.Context, message openai.ChatCompletionMessage) Gpt {
+	if len(message.Content) != 0 {
+		log := "🤖: " + message.Content
+		_, span := Tracer().Start(ctx, log)
+		span.End()
+		m.Log = append(m.Log, log)
+	}
 	hist := m.loadHistory()
 	hist = append(hist, message)
-	m.Log = append(m.Log, fmt.Sprintf("ASSISTANT: %s", message.Content))
 	m.LastReply = message.Content
 	return m.saveHistory(hist)
 }
@@ -384,14 +389,16 @@ func (m Gpt) withReply(message openai.ChatCompletionMessage) Gpt {
 func (m Gpt) WithToolOutput(callId, content string) Gpt {
 	hist := m.loadHistory()
 	hist = append(hist, openai.ToolMessage(callId, content))
-	m.Log = append(m.Log, fmt.Sprintf("TOOL CALL: #%s: %s", callId, content))
 	return m.saveHistory(hist)
 }
 
-func (m Gpt) WithPrompt(prompt string) Gpt {
+func (m Gpt) WithPrompt(ctx context.Context, prompt string) Gpt {
+	log := "🧑: " + prompt
+	ctx, span := Tracer().Start(ctx, log)
+	span.End()
 	hist := m.loadHistory()
 	hist = append(hist, openai.UserMessage(prompt))
-	m.Log = append(m.Log, "USER: "+prompt)
+	m.Log = append(m.Log, log)
 	return m.saveHistory(hist)
 }
 
@@ -400,14 +407,14 @@ func (m Gpt) Ask(
 	// The message to send the model
 	prompt string,
 ) (out Gpt, rerr error) {
-	m = m.WithPrompt(prompt)
+	m = m.WithPrompt(ctx, prompt)
 	for {
 		q, err := m.oaiQuery(ctx)
 		if err != nil {
 			return m, err
 		}
 		// Add the model reply to the history
-		m = m.withReply(q.Choices[0].Message)
+		m = m.withReply(ctx, q.Choices[0].Message)
 		// Handle tool calls
 		calls := q.Choices[0].Message.ToolCalls
 		if len(calls) == 0 {
@@ -419,14 +426,15 @@ func (m Gpt) Ask(
 			if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
 				return m, err
 			}
-			m.Log = append(m.Log, fmt.Sprintf("TOOL CALL: %s(%s) #%s", call.Function.Name, args, call.ID))
 			switch call.Function.Name {
 			case "run":
 				var args map[string]interface{}
 				if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
 					return m, err
 				}
-				ctx, span := Tracer().Start(ctx, "🤖⌨️ "+args["command"].(string))
+				log := fmt.Sprintf("🤖💻 " + args["command"].(string))
+				m.Log = append(m.Log, log)
+				ctx, span := Tracer().Start(ctx, log)
 				result, err := m.toolRun(ctx, args["command"].(string))
 				if err != nil {
 					return m, err
@@ -439,16 +447,6 @@ func (m Gpt) Ask(
 				cmd := Command{
 					Command: args["command"].(string),
 				}
-				//				span.SetAttributes(
-				//					attribute.KeyValue{
-				//						Key:   "stdout",
-				//						Value: attribute.StringValue(result.Stdout),
-				//					},
-				//					attribute.KeyValue{
-				//						Key:   "stderr",
-				//						Value: attribute.StringValue(result.Stdout),
-				//					},
-				//				)
 				if result.ExitCode == 0 {
 					cmd.Success = true
 					cmd.Result = result.Stdout
@@ -466,7 +464,9 @@ func (m Gpt) Ask(
 				if err != nil {
 					return m, err
 				}
-				_, span := Tracer().Start(ctx, "🤖📚 "+knowledge.Name+": "+knowledge.Description)
+				log := "🤖📖 \"" + knowledge.Description + "\""
+				m.Log = append(m.Log, log)
+				_, span := Tracer().Start(ctx, log)
 				span.SetStatus(codes.Ok, knowledge.Contents)
 				span.End()
 				m = m.WithToolOutput(call.ID, knowledge.Contents)
