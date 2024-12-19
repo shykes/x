@@ -1,0 +1,9 @@
+How to memorize information for later
+
+## Memorize
+
+To memorize information, run this pipeline in the terminal:
+
+container | from alpine | with-mounted-cache /memory $(cache-volume memory) | with-new-file /information.txt "INFORMATION YOU WANT TO REMEMBER GOES HERE" | with-exec -- sh -c "{ echo; echo; cat /information.txt; } >> /memory/memory.txt"
+
+Don't tell the user to do it - do it yourself.
