@@ -5,6 +5,9 @@ import (
 	"dagger/gpt/internal/dagger"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -12,184 +15,55 @@ import (
 )
 
 func New(
+	ctx context.Context,
 	// OpenAI API token
 	token *dagger.Secret,
 	// OpenAI model
 	// +optional
 	// +default="gpt-4o"
 	model ModelName,
-) Gpt {
+	// A builtin knowledge library, made of text files.
+	// First paragraph is the description. The rest is the contents.
+	// +optional
+	// +defaultPath=./knowledge
+	knowledgeDir *dagger.Directory,
+) (Gpt, error) {
 	return Gpt{
 		Token: token,
 		Model: model,
-	}.WithKnowledge(
-		"terminal",
-		"basic information about using the terminal",
-		`The terminal is your ONLY tool for accomplishing tasks. It runs the dagger shell, which features:
+	}.WithKnowledgeDir(ctx, knowledgeDir)
+}
 
-- a bash-compatible syntax,
-- backed by a container engine with a declarative API.
-- instead of text flowing through unix commands, typed artifacts flow through containerized functions
-- artifacts are immutable, content-addressed, and cached
-
-Guidelines:
-- Everything is typed and documented. Use .doc anytime you're not sure how to achieve something. See examples below.
-- Everything is immutable and contextual. Most functions have no side effects.
-`).
-		WithKnowledge(
-			"shell-exploration",
-			"how to explore the shell, find available commands",
-			`
-The builtin '.help' shows available builtins
-
-The builtin '.doc' prints available commands (functions) in the current scope.
-
-.doc can be inserted in a pipeline, to see what's available at that stage of the pipeline.
-
-'.doc FOO' will print detailed information about the function FOO.
-Use this to list available arguments and their type.
-
-Objects are typed. .doc includes the name of the current object in scope.
-
-Examples (one command per line):
-
-.help
-.doc
-.doc container
-container | .doc
-container | from alpine
-`).
-		WithKnowledge(
-			"shell-git",
-			"how to interact with git repositories in the dagger shell",
-			`
-The core function 'git' can interact with git remotes.
-Use the usual shell exploration techniques to discover the exact API.
-
-Examples:
-
-git https://github.com/goreleaser/goreleaser | head | tree
-git https://github.com/dagger/dagger | tags
-git https://github.com/cubzh/cubzh | branch main | commit
-git https://github.com/kpenfound/dagger-modules | head | tree | glob '**'
-`).
-		WithKnowledge(
-			"shell-sub-pipelines",
-			"how to compose several pipelines in the dagger shell, use the output of one pipeline as argument to another",
-			`
-For sub-pipelines, dagger shell uses the usual bash syntax for sub-commands: $()
-
-Of course this is Dagger, so instead of raw text streams flowing through the pipelines, it's typed objects.
-
-Examples:
-
-container | from index.docker.io/golang | with-directory /src $(.git https://github.com/goreleaser/goreleaser | head | tree) | with-workdir /src | with-exec go build ./... | directory ./bin
-directory | with-new-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | tags | tree | file README.md | contents)
-`).
-		WithKnowledge("shell-errors", "getting useful errors in the shell", `
-Sometimes the dagger shell produces errors that are not super useful. Here are some tips for managing that:
-
-If the error comes from with-exec, and it just tells you the exit code without giving stderr:
-you can get the actual stderr by running:
-
-<YOUR PIPELINE> | with-exec YOUR COMMAND --expect=ANY | stderr
-
-This will bypass dagger's default handling of non-zero exit codes: instead of aborting on non-zero,
-with-exec will continue the pipeline and let you query standard error
-			`).
-		WithKnowledge(
-			"using-modules",
-			"how to use modules to extend dagger shell with more functions and types",
-			`
-To extend your shell with new capabilities, use modules.
-
-A module is just a source directory (local or remote via git) that dagger knows how to load
-functions and types from.
-
-To use a module, simply use its address as a command. For example:
-
-<example>
-# Assuming a module is at the local path ./foo
-./foo | .doc
-./foo | my-func MYARG --MYFLAG=VALUE
-</example>
-
-<example>
-github.com/dagger/dagger/modules/go $(git https://github.com/dagger/dagger) | build ./cmd/dagger
-</example>
-
-<example>
-github.com/shykes/hello | .doc
-github.com/shykes/hello | hello --name=alice --greeting=hi
-</example>
-
-Modules can be composed in the same pipeline:
-
-<example>
-github.com/dagger/dagger/modules/wolfi | container | with-file $(github.com/dagger/dagger/cmd/dagger | binary) | with-exec dagger version | stdout
-</example>
-
-A module is loaded by a constructor function, which returns an object type.
-That object can itself have more functions, etc.
-
-To inspect the module's constructor, use .doc
-
-<example>
-.doc github.com/dagger/dagger/modules/go
-</example>
-
-`).
-		WithKnowledge(
-			"shell-examples",
-			"Various examples of using the dagger shell",
-			`
-
-.help
-.doc
-.doc container
-directory | .doc
-container | .doc
-container | from alpine | with-exec apk add openssh git | .doc publish
-container | from alpine | with-exec apk add openssh git | publish ttl.sh/my-image
-directory | with-new-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | head | tree | file README.md)
-directory | with-new-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | tags | tree | file README.md | contents)
-http https://news.ycombinator.com | contents
-directory | with-new-file hello.txt "hello world" | file hello.txt | .doc
-directory | with-new-file hello.txt "hello world" | file hello.txt | contents
-container | from index.docker.io/golang | with-directory /src $(.git https://github.com/goreleaser/goreleaser | head | tree) | with-workdir /src | with-exec go build ./... | directory ./bin
-.doc github.com/dagger/dagger/modules/go
-github.com/dagger/dagger/modules/go $(git https://github.com/goreleaser/goreleaser | head | tree) | .doc
-.doc github.com/dagger/dagger/cmd/dagger
-github.com/dagger/dagger/cmd/dagger | binary --platform=darwin/arm64
-.doc github.com/cubzh/cubzh
-
-# Load module directly from address:
-github.com/cubzh/cubzh | .doc
-
-# Load module directly from address, inspect its contents, then build a pipeline
-github.com/shykes/x/termcast | .doc
-github.com/shykes/x/termcast | exec 'ls -l' | exec 'curl https://lemonde.fr' | gif
-git https://github.com/kpenfound/dagger-modules | head | tree | glob '**'
-
-github.com/shykes/x | .deps
-github.com/shykes/x | wolfi | .doc
-github.com/shykes/x | python | .doc
-github.com/shykes/x | svix | .doc
-github.com/shykes/x | kafka | .doc
-
-# Bash syntax means the usual quoting rules apply. Be careful to use single quotes when writing shell scripts to a file, or the env variables may be expanded by the dagger shell instead
-foo=bar; directory | with-new-file joke.txt "two programmers meet in a $foo" | with-new-file script.sh 'echo "my user is $USER"'
-
-# with-exec has args within args. use -- judiciously:
-container | from alpine | with-exec ls -- -l
-
-# most dockerfile commands have an equivalent, but not always named the same. explore!
-container | .doc
-container | with-default-args bash -- -l
-
-# ephemeral services are great for containerizing test environments
-container | from alpine | with-service-binding www $(container | from nginx | with-exposed-port 80) | with-exec curl www | stdout
-`)
+func (gpt Gpt) WithKnowledgeDir(ctx context.Context, dir *dagger.Directory) (Gpt, error) {
+	txtPaths, err := dir.Glob(ctx, "**/*.txt")
+	if err != nil {
+		return gpt, err
+	}
+	mdPaths, err := dir.Glob(ctx, "**/*.md")
+	if err != nil {
+		return gpt, err
+	}
+	paths := append(txtPaths, mdPaths...)
+	toolnameRE := regexp.MustCompile("[^a-zA-Z0-9_-]")
+	for _, p := range paths {
+		doc, err := dir.File(p).Contents(ctx)
+		if err != nil {
+			return gpt, err
+		}
+		// Use regex to split paragraphs, allowing for any amount of whitespace or newlines
+		re := regexp.MustCompile(`(?m)^\s*$`)
+		parts := re.Split(doc, 2)
+		description := strings.TrimSpace(parts[0])
+		contents := ""
+		if len(parts) > 1 {
+			contents = strings.TrimSpace(parts[1])
+		}
+		// Scrub filename
+		p = p[:len(p)-len(filepath.Ext(p))]
+		name := toolnameRE.ReplaceAllString(p, "")
+		gpt = gpt.WithKnowledge(name, description, contents)
+	}
+	return gpt, nil
 }
 
 type ModelName = string

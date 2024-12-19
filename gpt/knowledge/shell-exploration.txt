@@ -1,0 +1,20 @@
+how to explore the shell, find available commands
+
+The builtin '.help' shows available builtins
+
+The builtin '.doc' prints available commands (functions) in the current scope.
+
+.doc can be inserted in a pipeline, to see what's available at that stage of the pipeline.
+
+'.doc FOO' will print detailed information about the function FOO.
+Use this to list available arguments and their type.
+
+Objects are typed. .doc includes the name of the current object in scope.
+
+Examples (one command per line):
+
+.help
+.doc
+.doc container
+container | .doc
+container | from alpine

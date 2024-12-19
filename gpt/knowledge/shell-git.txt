@@ -1,0 +1,11 @@
+how to interact with git repositories
+
+The core function 'git' can interact with git remotes.
+Use the usual shell exploration techniques to discover the exact API.
+
+Examples:
+
+git https://github.com/goreleaser/goreleaser | head | tree
+git https://github.com/dagger/dagger | tags
+git https://github.com/cubzh/cubzh | branch main | commit
+git https://github.com/kpenfound/dagger-modules | head | tree | glob '**'

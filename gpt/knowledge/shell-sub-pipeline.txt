@@ -1,0 +1,10 @@
+how to compose several pipelines in the dagger shell, use the output of one pipeline as argument to another
+
+For sub-pipelines, dagger shell uses the usual bash syntax for sub-commands: $()
+
+Of course this is Dagger, so instead of raw text streams flowing through the pipelines, it's typed objects.
+
+Examples:
+
+container | from index.docker.io/golang | with-directory /src $(.git https://github.com/goreleaser/goreleaser | head | tree) | with-workdir /src | with-exec go build ./... | directory ./bin
+directory | with-new-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | tags | tree | file README.md | contents)

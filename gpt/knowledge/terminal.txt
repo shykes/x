@@ -1,0 +1,12 @@
+basic information about using the terminal
+
+The terminal is your ONLY tool for accomplishing tasks. It runs the dagger shell, which features:
+
+- a bash-compatible syntax,
+- backed by a container engine with a declarative API.
+- instead of text flowing through unix commands, typed artifacts flow through containerized functions
+- artifacts are immutable, content-addressed, and cached
+
+Guidelines:
+- Everything is typed and documented. Use .doc anytime you're not sure how to achieve something. See examples below.
+- Everything is immutable and contextual. Most functions have no side effects.
