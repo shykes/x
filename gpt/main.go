@@ -332,7 +332,7 @@ func (m Gpt) oaiQuery(ctx context.Context) (*openai.ChatCompletion, error) {
 		Type: openai.F(openai.ChatCompletionToolTypeFunction),
 		Function: openai.F(openai.FunctionDefinitionParam{
 			Name:        openai.String("run"),
-			Description: openai.String("Execute a command in the terminal"),
+			Description: openai.String("Execute a dagger shell command in the terminal. This is your primary way to accomplish tasks. The syntax is bash-compatible but the backend is different. It requires specialized knowledge to use"),
 			Parameters: openai.F(openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]interface{}{

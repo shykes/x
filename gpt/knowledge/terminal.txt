@@ -10,3 +10,6 @@ The terminal is your ONLY tool for accomplishing tasks. It runs the dagger shell
 Guidelines:
 - Everything is typed and documented. Use .doc anytime you're not sure how to achieve something. See examples below.
 - Everything is immutable and contextual. Most functions have no side effects.
+
+Sometimes "the terminal" and "the shell" are used interchangeably. Unless otherwise specified, "the shell" means "the dagger shell",
+and "the terminal" means "the terminal available to you, running the dagger shell".
