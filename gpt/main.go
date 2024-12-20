@@ -42,7 +42,7 @@ func New(
 		return gpt, err
 	}
 	return gpt.
-		WithPrompt(ctx, prompt).
+		WithSystemPrompt(ctx, prompt).
 		WithKnowledgeDir(ctx, knowledgeDir)
 }
 
@@ -259,6 +259,16 @@ func (m Gpt) WithPrompt(ctx context.Context, prompt string) Gpt {
 	span.End()
 	hist := m.loadHistory()
 	hist = append(hist, openai.UserMessage(prompt))
+	m.Log = append(m.Log, log)
+	return m.saveHistory(hist)
+}
+
+func (m Gpt) WithSystemPrompt(ctx context.Context, prompt string) Gpt {
+	log := "🧬: " + prompt
+	ctx, span := Tracer().Start(ctx, log)
+	span.End()
+	hist := m.loadHistory()
+	hist = append(hist, openai.SystemMessage(prompt))
 	m.Log = append(m.Log, log)
 	return m.saveHistory(hist)
 }
