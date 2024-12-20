@@ -250,6 +250,28 @@ func (m Gpt) withReply(ctx context.Context, message openai.ChatCompletionMessage
 func (m Gpt) WithToolOutput(callId, content string) Gpt {
 	hist := m.loadHistory()
 	hist = append(hist, openai.ToolMessage(callId, content))
+	var runCount int
+	for i := range hist {
+		toolMsg, ok := hist[i].(openai.ChatCompletionToolMessageParam)
+		if !ok {
+			continue
+		}
+		var result toolRunResult
+		if err := json.Unmarshal([]byte(toolMsg.Content.String()), &result); err != nil {
+			continue
+		}
+		runCount += 1
+		if runCount+5 > len(m.ShellHistory) {
+			continue
+		}
+		result.Stderr = ""
+		result.Stdout = ""
+		resultJson, err := json.Marshal(result)
+		if err != nil {
+			continue
+		}
+		hist[i] = openai.ToolMessage(toolMsg.ToolCallID.String(), string(resultJson))
+	}
 	return m.saveHistory(hist)
 }
 
@@ -396,6 +418,11 @@ func (m Gpt) oaiQuery(ctx context.Context) (*openai.ChatCompletion, error) {
 		Messages: openai.F(m.loadHistory()),
 		Tools:    openai.F(tools),
 	}
+	paramsJSON, err := params.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("Sending openai request:\n----\n%s\n----\n", paramsJSON)
 	return client.Chat.Completions.New(ctx, params)
 }
 
@@ -413,17 +440,23 @@ type toolRunResult struct {
 	Workdir  *dagger.Directory `json:"-"`
 }
 
-func (m Gpt) toolRun(ctx context.Context, command string) (*toolRunResult, error) {
-	// Execute the command
-	cmd := dag.Container().
-		From("alpine").
+func (m Gpt) ToolEnv() *dagger.Container {
+	return dag.Container().
+		From("docker.io/library/alpine:latest@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45").
 		WithFile("/bin/dagger", dag.DaggerCli().Binary()).
 		WithWorkdir("/gpt/workdir").
 		WithDirectory(".", m.Workdir).
-		WithExec(
-			[]string{"dagger", "shell", "-s", "-c", command},
-			dagger.ContainerWithExecOpts{ExperimentalPrivilegedNesting: true, Expect: dagger.ReturnTypeAny},
-		)
+		WithDefaultTerminalCmd([]string{"/bin/sh"}, dagger.ContainerWithDefaultTerminalCmdOpts{
+			ExperimentalPrivilegedNesting: true,
+		})
+}
+
+func (m Gpt) toolRun(ctx context.Context, command string) (*toolRunResult, error) {
+	// Execute the command
+	cmd := m.ToolEnv().WithExec(
+		[]string{"dagger", "shell", "-s", "-c", command},
+		dagger.ContainerWithExecOpts{ExperimentalPrivilegedNesting: true, Expect: dagger.ReturnTypeAny},
+	)
 	stdout, err := cmd.Stdout(ctx)
 	if err != nil {
 		return nil, err
