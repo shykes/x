@@ -2,6 +2,6 @@ How to remember previously memorized information. Useful if you're asked a quest
 
 To recall your memory, run this pipeline in the terminal:
 
-container | from alpine | with-mounted-cache /memory $(cache-volume memory) | with-exec cat /memory/memory.txt | stdout
+container | from alpine | with-env-variable CACHEBUSTER <INSERT A RANDOM VALUE HERE> | with-mounted-cache /memory $(cache-volume memory) | with-exec cat /memory/memory.txt | stdout
 
 Don't tell the user to do it - do it yourself.
