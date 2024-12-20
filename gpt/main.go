@@ -33,8 +33,9 @@ func New(
 	systemPrompt *dagger.File,
 ) (Gpt, error) {
 	gpt := Gpt{
-		Token: token,
-		Model: model,
+		Token:   token,
+		Model:   model,
+		Workdir: dag.Directory(),
 	}
 	prompt, err := systemPrompt.Contents(ctx)
 	if err != nil {
@@ -53,6 +54,7 @@ type Gpt struct {
 	ShellHistory  []Command   // +private
 	LastReply     string      // +private
 	KnowledgeBase []Knowledge // +private
+	Workdir       *dagger.Directory
 }
 
 // Add knowledge by reading text files from a directory
@@ -261,6 +263,12 @@ func (m Gpt) WithPrompt(ctx context.Context, prompt string) Gpt {
 	return m.saveHistory(hist)
 }
 
+// Attach a new workdir for the AI's shell
+func (gpt Gpt) WithWorkdir(workdir *dagger.Directory) Gpt {
+	gpt.Workdir = workdir
+	return gpt
+}
+
 func (m Gpt) Ask(
 	ctx context.Context,
 	// The message to send the model
@@ -298,6 +306,7 @@ func (m Gpt) Ask(
 				if err != nil {
 					return m, err
 				}
+				m.Workdir = m.Workdir.WithDirectory(".", result.Workdir)
 				resultJson, err := json.Marshal(result)
 				if err != nil {
 					return m, err
@@ -391,6 +400,7 @@ type toolRunResult struct {
 	Stdout   string
 	Stderr   string
 	ExitCode int
+	Workdir  *dagger.Directory
 }
 
 func (m Gpt) toolRun(ctx context.Context, command string) (*toolRunResult, error) {
@@ -398,6 +408,7 @@ func (m Gpt) toolRun(ctx context.Context, command string) (*toolRunResult, error
 	cmd := dag.Container().
 		From("alpine").
 		WithFile("/bin/dagger", dag.DaggerCli().Binary()).
+		WithWorkdir("/gpt/workdir").
 		WithExec(
 			[]string{"dagger", "shell", "-s", "-c", command},
 			dagger.ContainerWithExecOpts{ExperimentalPrivilegedNesting: true, Expect: dagger.ReturnTypeAny},
@@ -418,6 +429,7 @@ func (m Gpt) toolRun(ctx context.Context, command string) (*toolRunResult, error
 		Stdout:   stdout,
 		Stderr:   stderr,
 		ExitCode: exitCode,
+		Workdir:  cmd.Directory("/gpt/workdir"),
 	}, nil
 }
 

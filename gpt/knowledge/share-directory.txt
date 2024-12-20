@@ -1,0 +1,11 @@
+How to share files with the user
+
+To share files or directories with the user, export them to the host's filesystem at the current directory.
+
+<example>
+directory | with-new-file hello.txt "Hello dear user" | export .
+</example>
+
+<example>
+git https://github.com/dagger/dagger | head | tree | export ./src/dagger
+</example>
