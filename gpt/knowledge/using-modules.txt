@@ -1,6 +1,8 @@
-how to use dagger modules
+how to work with dagger modules
 
 Dagger modules extend Dagger with custom types and functions.
+
+## Loading and running modules
 
 To load a module, use its address like a command to execute.
 
@@ -36,3 +38,30 @@ github.com/dagger/dagger | .doc
 github.com/dagger/dagger | sdk | .doc
 github.com/dagger/dagger | sdk | python | .doc
 </example>
+
+
+## Reading the source code of a module
+
+Every dagger module has a source directory, containing:
+
+1. A dagger.json file
+2. An optional source directory referenced by the "source" field in dagger.json
+
+This directory could be hosted on a git server, or on a local directory.
+
+The "sdk" field in dagger.json tells you what SDK is used by the module: go, python, typescript etc.
+
+The source directory contains SDK-specific source code and configuration. For example, the source for a Dagger module using the Go SDK will contain a go module. generally:
+
+- go.mod
+- go.sum
+- main.go or other .go files
+
+Here are some examples of repositories containing source code of dagger modules
+
+- github.com/marcosnils/daggerverse
+- github.com/shykes/hello
+- github.com/shykes/x
+- github.com/kpenfound/dagger-modules
+- github.com/dagger/dagger/modules
+- github.com/dagger/dagger

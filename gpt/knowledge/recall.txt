@@ -1,7 +1,0 @@
-How to remember previously memorized information. Useful if you're asked a question you don't have the answer to.
-
-To recall your memory, run this pipeline in the terminal:
-
-container | from alpine | with-env-variable CACHEBUSTER <INSERT A RANDOM VALUE HERE> | with-mounted-cache /memory $(cache-volume memory) | with-exec cat /memory/memory.txt | stdout
-
-Don't tell the user to do it - do it yourself.

@@ -1,0 +1,139 @@
+Dagger shell cookbook and examples. Important to understand how to use the terminal.
+
+## How to find available commands in the shell
+
+The builtin '.help' shows available builtins
+
+The builtin '.doc' prints available commands (functions) in the current scope. Dagger pipelines are functional, so each step of the pipeline produces an object with its own scope.
+
+.doc can be inserted in a pipeline, to see what's available at that stage of the pipeline.
+
+'.doc FOO' will print detailed information about the function FOO.
+Use this to list available arguments and their type.
+
+Objects are typed. .doc includes the name of the current object in scope.
+
+Examples (one command per line):
+
+.help
+.doc
+.doc container
+container | .doc
+container | from alpine
+
+## Files and directories
+
+how to create and modify files and directories
+
+Dagger's File and Directory types are immutable. To "write" to a directory, you actually append a new operation to its pipeline, creating a new immutable directory.
+
+Files cannot exist standalone: they are always part of a directory. This is why there is a 'directory' function but no 'file' function.
+
+<example>
+directory | with-new-file hello.txt 'Hello, world' | with-directory ./src $(git https://github.com/goreleaser/goreleaser | head | tree)
+</example>
+
+## Git repositories
+
+how to interact with git repositories
+
+First, ask yourself: do I want the raw data in the git repository, or do
+I want to load it as a Dagger module and discover its API? If the repository
+(or subdirectory) has a dagger module, it's worth loading it just in case.
+Fallback to "regular" git operations.
+
+1. Git repository as module
+
+To load a git repo as a module, see "how to use modules"
+
+<example>
+github.com/dagger/dagger | .doc
+github.com/shykes/x/gpt | .doc
+</example>
+
+2. Git repository as "dead" data
+
+The core function 'git' can interact with git remotes.
+Use the usual shell exploration techniques to discover the exact API.
+
+<example>
+git https://github.com/goreleaser/goreleaser | head | tree
+git https://github.com/dagger/dagger | tags
+git https://github.com/cubzh/cubzh | branch main | commit
+git https://github.com/kpenfound/dagger-modules | head | tree | glob '**'
+</example>
+
+
+## Sub-pipelines
+
+You can use the result of one pipeline as an argument to another pipeline
+
+, use the output of one pipeline as argument to another
+For sub-pipelines, dagger shell uses the usual bash syntax for sub-commands: $()
+
+Of course this is Dagger, so instead of raw text streams flowing through the pipelines, it's typed objects.
+
+Examples:
+
+container | from index.docker.io/golang | with-directory /src $(.git https://github.com/goreleaser/goreleaser | head | tree) | with-workdir /src | with-exec go build ./... | directory ./bin
+directory | with-new-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | tags | tree | file README.md | contents)
+
+## Examples
+
+.help
+.doc
+.doc container
+directory | .doc
+container | .doc
+container | from alpine | with-exec apk add openssh git | .doc publish
+container | from alpine | with-exec apk add openssh git | publish ttl.sh/my-image
+directory | with-new-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | head | tree | file README.md)
+directory | with-new-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | tags | tree | file README.md | contents)
+http https://news.ycombinator.com | contents
+directory | with-new-file hello.txt "hello world" | file hello.txt | .doc
+directory | with-new-file hello.txt "hello world" | file hello.txt | contents
+container | from index.docker.io/golang | with-directory /src $(.git https://github.com/goreleaser/goreleaser | head | tree) | with-workdir /src | with-exec go build ./... | directory ./bin
+.doc github.com/dagger/dagger/modules/go
+github.com/dagger/dagger/modules/go $(git https://github.com/goreleaser/goreleaser | head | tree) | .doc
+.doc github.com/dagger/dagger/cmd/dagger
+github.com/dagger/dagger/cmd/dagger | binary --platform=darwin/arm64
+.doc github.com/cubzh/cubzh
+
+# Load module directly from address:
+github.com/cubzh/cubzh | .doc
+
+# Load module directly from address, inspect its contents, then build a pipeline
+github.com/shykes/x/termcast | .doc
+github.com/shykes/x/termcast | exec 'ls -l' | exec 'curl https://lemonde.fr' | gif
+git https://github.com/kpenfound/dagger-modules | head | tree | glob '**'
+
+github.com/shykes/x | .deps
+github.com/shykes/x | wolfi | .doc
+github.com/shykes/x | python | .doc
+github.com/shykes/x | svix | .doc
+github.com/shykes/x | kafka | .doc
+
+# Bash syntax means the usual quoting rules apply. Be careful to use single quotes when writing shell scripts to a file, or the env variables may be expanded by the dagger shell instead
+foo=bar; directory | with-new-file joke.txt "two programmers meet in a $foo" | with-new-file script.sh 'echo "my user is $USER"'
+
+# with-exec has args within args. use -- judiciously:
+container | from alpine | with-exec ls -- -l
+
+# most dockerfile commands have an equivalent, but not always named the same. explore!
+container | .doc
+container | with-default-args bash -- -l
+
+# ephemeral services are great for containerizing test environments
+container | from alpine | with-service-binding www $(container | from nginx | with-exposed-port 80) | with-exec curl www | stdout
+
+## How to get useful errors in the shell
+
+Sometimes the dagger shell produces errors that are not super useful. Here are some tips for managing that:
+
+If the error comes from with-exec, and it just tells you the exit code without giving stderr:
+you can get the actual stderr by running:
+
+<YOUR PIPELINE> | with-exec YOUR COMMAND --expect=ANY | stderr
+
+This will bypass dagger's default handling of non-zero exit codes: instead of aborting on non-zero,
+with-exec will continue the pipeline and let you query standard error
