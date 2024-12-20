@@ -400,7 +400,7 @@ type toolRunResult struct {
 	Stdout   string
 	Stderr   string
 	ExitCode int
-	Workdir  *dagger.Directory
+	Workdir  *dagger.Directory `json:"-"`
 }
 
 func (m Gpt) toolRun(ctx context.Context, command string) (*toolRunResult, error) {
