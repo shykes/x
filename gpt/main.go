@@ -55,6 +55,10 @@ type Gpt struct {
 	KnowledgeBase []Knowledge // +private
 }
 
+// Add knowledge by reading text files from a directory
+// Any .txt or .md file will be read.
+// - The first paragraph is the description
+// - The rest of the file is the contents
 func (gpt Gpt) WithKnowledgeDir(ctx context.Context, dir *dagger.Directory) (Gpt, error) {
 	txtPaths, err := dir.Glob(ctx, "**/*.txt")
 	if err != nil {
@@ -87,13 +91,24 @@ func (gpt Gpt) WithKnowledgeDir(ctx context.Context, dir *dagger.Directory) (Gpt
 	return gpt, nil
 }
 
+// An individual piece of knowledge
 type Knowledge struct {
 	Name        string
 	Description string
 	Contents    string
 }
 
-func (m Gpt) WithKnowledge(name, description, contents string) Gpt {
+// Inject knowledge
+func (m Gpt) WithKnowledge(
+	// Unique name. Not semantically meaningful
+	name,
+	// Description for the knowledge. Keep it short, like the cover of a book.
+	// The model uses it to decide which book to read
+	description,
+	// Contents of the knowledge. This is like the contents of the book.
+	// It will only be read by the model if it decides to lookup based on the description.
+	contents string,
+) Gpt {
 	m.KnowledgeBase = append(m.KnowledgeBase, Knowledge{
 		Name:        name,
 		Description: description,
@@ -102,6 +117,7 @@ func (m Gpt) WithKnowledge(name, description, contents string) Gpt {
 	return m
 }
 
+// Lookup a piece of knowledge by name
 func (m Gpt) Knowledge(name string) (*Knowledge, error) {
 	for _, knowledge := range m.KnowledgeBase {
 		if knowledge.Name == name {
