@@ -1,0 +1,8 @@
+What is a pipeline in dagger?
+
+In Dagger, function calls can be chained to form a pipeline.
+Each function returns a certain type. If that type is an object, it may contain more functions,
+which can be called, and so on. Each function call has its own arguments.
+
+This is similar to bash pipelines, except with typed artifacts flowing through the functions,
+rather than unstructured text streams flowing through the bash commands.

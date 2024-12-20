@@ -1,0 +1,9 @@
+how to create and modify files and directories
+
+Dagger's File and Directory types are immutable. To "write" to a directory, you actually append a new operation to its pipeline, creating a new immutable directory.
+
+Files cannot exist standalone: they are always part of a directory. This is why there is a 'directory' function but no 'file' function.
+
+<example>
+directory | with-new-file hello.txt 'Hello, world' | with-directory ./src $(git https://github.com/goreleaser/goreleaser | head | tree)
+</example>
