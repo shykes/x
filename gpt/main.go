@@ -409,6 +409,7 @@ func (m Gpt) toolRun(ctx context.Context, command string) (*toolRunResult, error
 		From("alpine").
 		WithFile("/bin/dagger", dag.DaggerCli().Binary()).
 		WithWorkdir("/gpt/workdir").
+		WithDirectory(".", m.Workdir).
 		WithExec(
 			[]string{"dagger", "shell", "-s", "-c", command},
 			dagger.ContainerWithExecOpts{ExperimentalPrivilegedNesting: true, Expect: dagger.ReturnTypeAny},
