@@ -235,6 +235,7 @@ func (m Gpt) withReply(ctx context.Context, message openai.ChatCompletionMessage
 	if len(message.Content) != 0 {
 		log := "🤖: " + message.Content
 		_, span := Tracer().Start(ctx, log)
+		span.SetStatus(codes.Ok, "")
 		span.End()
 		m.Log = append(m.Log, log)
 	}
