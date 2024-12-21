@@ -250,28 +250,6 @@ func (m Gpt) withReply(ctx context.Context, message openai.ChatCompletionMessage
 func (m Gpt) WithToolOutput(callId, content string) Gpt {
 	hist := m.loadHistory()
 	hist = append(hist, openai.ToolMessage(callId, content))
-	var runCount int
-	for i := range hist {
-		toolMsg, ok := hist[i].(openai.ChatCompletionToolMessageParam)
-		if !ok {
-			continue
-		}
-		var result toolRunResult
-		if err := json.Unmarshal([]byte(toolMsg.Content.String()), &result); err != nil {
-			continue
-		}
-		runCount += 1
-		if runCount+5 > len(m.ShellHistory) {
-			continue
-		}
-		result.Stderr = ""
-		result.Stdout = ""
-		resultJson, err := json.Marshal(result)
-		if err != nil {
-			continue
-		}
-		hist[i] = openai.ToolMessage(toolMsg.ToolCallID.String(), string(resultJson))
-	}
 	return m.saveHistory(hist)
 }
 
