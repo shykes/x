@@ -414,6 +414,16 @@ type Command struct {
 	Error   string
 }
 
+func (gpt Gpt) HistoryFile() *dagger.File {
+	var snippets []string
+	for _, cmd := range gpt.ShellHistory {
+		snippet := fmt.Sprintf("<cmd>\n%s\n</cmd>\n<success>%t</success>\n<result>\n%s\n</result>\n<error>\n%s\n</error>",
+			cmd.Command, cmd.Success, cmd.Result, cmd.Error)
+		snippets = append(snippets, snippet)
+	}
+	return dag.Directory().WithNewFile("commands", strings.Join(snippets, "\n")).File("commands")
+}
+
 type toolRunResult struct {
 	Stdout   string
 	Stderr   string
