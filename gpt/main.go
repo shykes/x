@@ -248,6 +248,9 @@ func (m Gpt) withReply(ctx context.Context, message openai.ChatCompletionMessage
 }
 
 func (m Gpt) WithToolOutput(callId, content string) Gpt {
+	// Remove all ANSI escape codes (eg. part of raw interactive shell output), to avoid json marshalling failing
+	re := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+	content = re.ReplaceAllString(content, "")
 	hist := m.loadHistory()
 	hist = append(hist, openai.ToolMessage(callId, content))
 	return m.saveHistory(hist)
