@@ -1,0 +1,57 @@
+Educational replay of a past shell session by a beginner, with the prompt: "build a container from alpine, install openssh and go, then copy the source code of github.com/dagger/dagger into a reasonable path, make that path the workdir"
+
+<replay>
+<cmd>
+apk add openssh go
+</cmd>
+<success>false</success>
+<result>
+
+</result>
+<error>
+Error: function or module "apk" not found
+
+</error>
+<cmd>
+git clone https://github.com/dagger/dagger.git /app
+</cmd>
+<success>false</success>
+<result>
+
+</result>
+<error>
+Error: could not parse arguments for function "git": accepts at most 1 positional argument(s), received 3
+
+</error>
+<cmd>
+container | from alpine | with-exec apk add openssh go | git https://github.com/dagger/dagger | with-workdir /app
+</cmd>
+<success>false</success>
+<result>
+
+</result>
+<error>
+Error: no function "git" in type "Container"
+
+</error>
+<cmd>
+container | from alpine | with-exec apk add openssh go | with-workdir /app | with-directory /app $(git https://github.com/dagger/dagger | head | tree)
+</cmd>
+<success>true</success>
+<result>
+{
+    "defaultArgs": [
+        "/bin/sh"
+    ],
+    "entrypoint": [],
+    "mounts": [],
+    "platform": "linux/arm64",
+    "user": "",
+    "workdir": "/app"
+}
+
+</result>
+<error>
+
+</error>
+</replay>

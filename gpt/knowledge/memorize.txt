@@ -1,19 +1,21 @@
-How to memorize information, and recall it later
+How to memorize information and recall it later
 
 ## Memorize
 
-To memorize information, run this pipeline in the terminal:
+To memorize information:
 
+<shell>
 container | from alpine | with-mounted-cache /memory $(cache-volume memory) | with-new-file /information.txt "INFORMATION YOU WANT TO REMEMBER GOES HERE" | with-exec -- sh -c "{ echo; echo; cat /information.txt; } >> /memory/memory.txt"
+</shell>
 
 Don't tell the user to do it - do it yourself.
 
 ## Recall
 
-How to remember previously memorized information. Useful if you're asked a question you don't have the answer to.
+The recall memorized information:
 
-To recall your memory, run this pipeline in the terminal:
-
+<shell>
 container | from alpine | with-env-variable CACHEBUSTER <INSERT A RANDOM VALUE HERE> | with-mounted-cache /memory $(cache-volume memory) | with-exec cat /memory/memory.txt | stdout
+</shell>
 
 Don't tell the user to do it - do it yourself.

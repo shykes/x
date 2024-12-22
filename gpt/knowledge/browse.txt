@@ -1,6 +1,0 @@
-how to browse the web
-
-To browse the web, either 1) use the dagger shell's http capability, or 2)
-install and run curl (or an equivalent tool) in a container. Then read the html content.
-
-Don't tell the user to do it - do it yourself.

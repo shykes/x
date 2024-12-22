@@ -1,9 +1,0 @@
-How to perform complex tasks
-
-To perform complex tasks:
-
-- Think about how to break down that task in smaller task
-- If possible, do it from the terminal
-- If possible, use dagger modules
-- Remember, using dagger you can 1) fetch anything from git 2) run anything in any container 3) create and read files and directories with ease. So, indirectly you can run almost any command-line tool; and from there interact with almost any internet resource
-- If you are missing knowledge: perhaps you can accomplish a task which results in you acquiring the missing knowledge. Knowledge can be found on git; over http; or by executing a dagger module or containerized tool
