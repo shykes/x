@@ -1,0 +1,17 @@
+how to load a local module
+
+To load a module from a local directory on the host, use the local path as the module address.
+
+For example, to load a module from the current workdir:
+
+```
+# inspect the module's constructor
+.doc .
+# call the constructor, and inspect the returned object
+. | .doc
+# assuming the module has a function 'foo':
+. | .doc foo
+. | foo
+```
+
+Once loaded, a local module behaves the same as a remote one.
