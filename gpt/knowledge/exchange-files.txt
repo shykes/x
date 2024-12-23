@@ -1,4 +1,4 @@
-How to exchange files with the user (receiving and sending)
+How to exchange files with the user (receiving and sending). learn the terminal first.
 
 ## Sending files to the user
 

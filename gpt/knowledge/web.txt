@@ -1,0 +1,20 @@
+How to browse the web
+
+1. LEARN HOW TO USE THE DAGGER SHELL.
+
+You can use the builtin `http` function in the shell, to download any file over http.
+Then you can continue the pipeline with any file operation, including reading the contents.
+
+<example>
+http https://docs.dagger.io | .doc
+http https://docs.dagger.io | contents
+</example>
+
+For more advanced operations, for example mirroring an entire site, you can install a tool like 'wget' in a container,
+execute the tool, and get the result out.
+
+<example>
+github.com/dagger/dagger/modules/wolfi | container --packages=wget | with-exec -- wget --mirror --convert-links --adjust-extension --page-requisites --no-parent http://example.com -P /website | directory /website
+</example>
+
+Don't tell the user to do this. Do it yourself.

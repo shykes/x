@@ -1,5 +1,7 @@
 How to memorize information and recall it later
 
+1. LEARN HOW TO USE THE DAGGER SHELL
+
 ## Memorize
 
 To memorize information:

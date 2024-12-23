@@ -1,5 +1,7 @@
 how to work with dagger modules
 
+1. LEARN HOW TO USE THE DAGGER SHELL.
+
 Dagger modules extend Dagger with custom types and functions.
 
 ## Loading and running modules
