@@ -6,7 +6,7 @@
     {
       "name": "dagger-cli",
       "source": "github.com/dagger/dagger/cmd/dagger",
-      "pin": "2c0aaae0a24fa857099cc413eb7348d5bcd3ff5c"
+      "pin": "ab22a0cbb58ffc96e1dd3a1833686680322639da"
     }
   ],
   "source": "."
