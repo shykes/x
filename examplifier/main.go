@@ -26,24 +26,26 @@ type Examplifier struct {
 }
 
 func (m *Examplifier) Examplify(
-	mod *dagger.Directory,
+	address string,
+	// +optional
+	context *dagger.Directory,
 	// Number of examples
 	// +optional
 	// +default=5
 	n int,
 ) *dagger.Directory {
+	if context == nil {
+		context = dag.Directory()
+	}
 	return m.Gpt.
-		WithWorkdir(mod).
+		WithWorkdir(context).
 		Ask(
 			fmt.Sprintf(`
-There is a local module at the path ".". You can load it with '.doc .', '. | .doc', etc.
-
-Follow these steps carefully. Be attentive to detail:
-
-1. Inspect this module thoroughly, including its functions and arguments.
-2. Think of %d example pipelines that would help someone understand how to use it. Maximize coverage of available functions and arguments. (the EXAMPLES)
-3. Run each pipeline to make sure it works
-4. Write a description of the module and its purpose, along with your working example pipelines, to a new file
-5. Export the file to ./examplify/README.md . Be careful to export the file, and not the enclosing directory
-`, n)).Workdir()
+1. Load the dagger module at the address "%s".
+2. Inspect this module thoroughly, including its functions and arguments.
+3. Think of %d example pipelines that would help someone understand how to use it. Maximize coverage of available functions and arguments. (the EXAMPLES)
+4. Run each pipeline to make sure it works
+5. Write the pipelines to a markdown file, along with a summary of the module's features and purpose
+6. Export the file to ./examplify/README.md. Be careful to export the file, and not the enclosing directory
+`, address, n)).Workdir()
 }
