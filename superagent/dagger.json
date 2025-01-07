@@ -1,0 +1,13 @@
+{
+  "name": "superagent",
+  "engineVersion": "v0.15.2-241220153056-ab22a0cbb58f",
+  "sdk": "go",
+  "dependencies": [
+    {
+      "name": "gpt",
+      "source": "github.com/shykes/x/gpt",
+      "pin": "c70396a1863ac6da563e9f2a5ad97dafa076196f"
+    }
+  ],
+  "source": "."
+}
