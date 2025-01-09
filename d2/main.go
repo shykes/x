@@ -15,6 +15,6 @@ func (m *D2) Svg(source *dagger.File) *dagger.Directory {
 		WithWorkdir("/d2").
 		WithMountedFile("./source.d2", source).
 		WithWorkdir("./output").
-		WithExec([]string{"d2", "../source.d2", "."}).
+		WithExec([]string{"d2", "../source.d2", "..svg"}).
 		Directory(".")
 }
