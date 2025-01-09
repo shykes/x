@@ -35,6 +35,15 @@ func New(
 		Token:   token,
 		Model:   model,
 		Workdir: dag.Directory(),
+		Computer: dag.Container().
+			From("docker.io/library/alpine:latest@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45").
+			WithFile("/bin/dagger", dag.DaggerCli().Binary()).
+			WithEnvVariable("HOME", "/home").
+			WithWorkdir("/home").
+			WithDefaultTerminalCmd([]string{"/bin/sh"}, dagger.ContainerWithDefaultTerminalCmdOpts{
+				ExperimentalPrivilegedNesting: true,
+			}),
+		Changes: dag.Directory(),
 	}
 	prompt, err := systemPrompt.Contents(ctx)
 	if err != nil {
@@ -54,6 +63,10 @@ type Gpt struct {
 	LastReply     string      // +private
 	KnowledgeBase []Knowledge // +private
 	Workdir       *dagger.Directory
+	// The agent's "computer" (running in a sandboxed container)
+	Computer *dagger.Container
+	// All changes the agent made to its filesystem
+	Changes *dagger.Directory
 }
 
 // An OpenAI model name
@@ -216,7 +229,9 @@ func (m Gpt) Ask(
 				if err != nil {
 					return m, err
 				}
-				m.Workdir = m.Workdir.WithDirectory(".", result.Workdir)
+				m.Changes = m.Computer.Rootfs().Diff(result.Computer.Rootfs())
+				m.Workdir = m.Computer.Directory(".")
+				m.Computer = result.Computer
 				resultJson, err := json.Marshal(result)
 				if err != nil {
 					return m, err
@@ -274,29 +289,20 @@ type toolRunResult struct {
 	Stderr   string
 	ExitCode int
 	Workdir  *dagger.Directory `json:"-"`
-}
-
-func (m Gpt) ToolEnv() *dagger.Container {
-	return dag.Container().
-		From("docker.io/library/alpine:latest@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45").
-		WithFile("/bin/dagger", dag.DaggerCli().Binary()).
-		WithWorkdir("/gpt/workdir").
-		WithDirectory(".", m.Workdir).
-		WithDefaultTerminalCmd([]string{"/bin/sh"}, dagger.ContainerWithDefaultTerminalCmdOpts{
-			ExperimentalPrivilegedNesting: true,
-		})
+	Computer *dagger.Container `json:"-"`
 }
 
 func (m Gpt) toolRun(ctx context.Context, command string) (*toolRunResult, error) {
 	// Execute the command
-	cmd := m.ToolEnv().WithExec(
-		[]string{"dagger", "shell", "-s"},
-		dagger.ContainerWithExecOpts{
-			ExperimentalPrivilegedNesting: true,
-			Expect:                        dagger.ReturnTypeAny,
-			Stdin:                         command,
-		},
-	)
+	cmd := m.Computer.
+		WithExec(
+			[]string{"dagger", "shell", "-s"},
+			dagger.ContainerWithExecOpts{
+				ExperimentalPrivilegedNesting: true,
+				Expect:                        dagger.ReturnTypeAny,
+				Stdin:                         command,
+			},
+		)
 	stdout, err := cmd.Stdout(ctx)
 	if err != nil {
 		return nil, err
@@ -313,6 +319,7 @@ func (m Gpt) toolRun(ctx context.Context, command string) (*toolRunResult, error
 		Stdout:   stdout,
 		Stderr:   stderr,
 		ExitCode: exitCode,
-		Workdir:  cmd.Directory("/gpt/workdir"),
+		Workdir:  cmd.Directory("."),
+		Computer: cmd,
 	}, nil
 }
