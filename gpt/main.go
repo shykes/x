@@ -32,14 +32,14 @@ func New(
 	systemPrompt *dagger.File,
 ) (Gpt, error) {
 	gpt := Gpt{
-		Token:   token,
-		Model:   model,
-		Workdir: dag.Directory(),
+		Token: token,
+		Model: model,
+		Home:  dag.Directory(),
 		Computer: dag.Container().
 			From("docker.io/library/alpine:latest@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45").
 			WithFile("/bin/dagger", dag.DaggerCli().Binary()).
 			WithEnvVariable("HOME", "/home").
-			WithWorkdir("/home").
+			WithWorkdir("$HOME", dagger.ContainerWithWorkdirOpts{Expand: true}).
 			WithDefaultTerminalCmd([]string{"/bin/sh"}, dagger.ContainerWithDefaultTerminalCmdOpts{
 				ExperimentalPrivilegedNesting: true,
 			}),
@@ -62,7 +62,8 @@ type Gpt struct {
 	ShellHistory  []Command   // +private
 	LastReply     string      // +private
 	KnowledgeBase []Knowledge // +private
-	Workdir       *dagger.Directory
+	// The agent's home directory
+	Home *dagger.Directory
 	// The agent's "computer" (running in a sandboxed container)
 	Computer *dagger.Container
 	// All changes the agent made to its filesystem
@@ -186,9 +187,9 @@ func (m Gpt) WithSystemPrompt(ctx context.Context, prompt string) Gpt {
 	return m.saveHistory(hist)
 }
 
-// Attach a new workdir for the AI's shell
-func (gpt Gpt) WithWorkdir(workdir *dagger.Directory) Gpt {
-	gpt.Workdir = workdir
+// Configure the agent's home directory. Use this to give it files.
+func (gpt Gpt) WithHome(home *dagger.Directory) Gpt {
+	gpt.Home = home
 	return gpt
 }
 
@@ -230,8 +231,8 @@ func (m Gpt) Ask(
 					return m, err
 				}
 				m.Changes = m.Computer.Rootfs().Diff(result.Computer.Rootfs())
-				m.Workdir = m.Computer.Directory(".")
 				m.Computer = result.Computer
+				m.Home = m.Computer.Directory(".")
 				resultJson, err := json.Marshal(result)
 				if err != nil {
 					return m, err
@@ -288,13 +289,14 @@ type toolRunResult struct {
 	Stdout   string
 	Stderr   string
 	ExitCode int
-	Workdir  *dagger.Directory `json:"-"`
+	Home     *dagger.Directory `json:"-"`
 	Computer *dagger.Container `json:"-"`
 }
 
 func (m Gpt) toolRun(ctx context.Context, command string) (*toolRunResult, error) {
 	// Execute the command
 	cmd := m.Computer.
+		WithDirectory(".", m.Home).
 		WithExec(
 			[]string{"dagger", "shell", "-s"},
 			dagger.ContainerWithExecOpts{
@@ -319,7 +321,7 @@ func (m Gpt) toolRun(ctx context.Context, command string) (*toolRunResult, error
 		Stdout:   stdout,
 		Stderr:   stderr,
 		ExitCode: exitCode,
-		Workdir:  cmd.Directory("."),
+		Home:     cmd.Directory("."),
 		Computer: cmd,
 	}, nil
 }
