@@ -70,8 +70,8 @@ func (m Gpt) oaiQuery(ctx context.Context) (comp *openai.ChatCompletion, rerr er
 	runTool := openai.ChatCompletionToolParam{
 		Type: openai.F(openai.ChatCompletionToolTypeFunction),
 		Function: openai.F(openai.FunctionDefinitionParam{
-			Name:        openai.String("run"),
-			Description: openai.String("Execute a dagger shell command in the terminal. This is your primary way to accomplish tasks. The syntax is bash-compatible but the backend is different. It requires specialized knowledge to use"),
+			Name:        openai.String("dagger-shell-command"),
+			Description: openai.String("Execute a command in the dagger shell. <prerequisite>read the dagger shell manual</prerequisite>. It does not work like regular shells"),
 			Parameters: openai.F(openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]interface{}{
