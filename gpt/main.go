@@ -4,13 +4,9 @@ import (
 	"context"
 	"dagger/gpt/internal/dagger"
 	"encoding/json"
-	"fmt"
-	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/openai/openai-go"
-	"go.opentelemetry.io/otel/codes"
 )
 
 func New(
@@ -32,139 +28,52 @@ func New(
 	systemPrompt *dagger.File,
 ) (Gpt, error) {
 	gpt := Gpt{
-		Token: token,
-		Model: model,
-		Home:  dag.Directory(),
-		Computer: dag.Container().
-			From("docker.io/library/alpine:latest@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45").
-			WithFile("/bin/dagger", dag.DaggerCli().Binary()).
-			WithEnvVariable("HOME", "/home").
-			WithWorkdir("$HOME", dagger.ContainerWithWorkdirOpts{Expand: true}).
-			WithDefaultTerminalCmd([]string{"/bin/sh"}, dagger.ContainerWithDefaultTerminalCmdOpts{
-				ExperimentalPrivilegedNesting: true,
-			}),
-		Changes: dag.Directory(),
+		Token:   token,
+		Model:   model,
+		Sandbox: dag.Sandbox().WithUsername("🤖").ImportManuals(knowledgeDir),
 	}
 	prompt, err := systemPrompt.Contents(ctx)
 	if err != nil {
 		return gpt, err
 	}
-	return gpt.
-		WithSystemPrompt(ctx, prompt).
-		WithKnowledgeDir(ctx, knowledgeDir)
+	return gpt.WithSystemPrompt(ctx, prompt), nil
 }
 
 type Gpt struct {
-	Model         ModelName      // +private
-	Token         *dagger.Secret // +private
-	HistoryJSON   string         // +private
-	Log           []string
-	ShellHistory  []Command   // +private
-	LastReply     string      // +private
-	KnowledgeBase []Knowledge // +private
-	// The agent's home directory
-	Home *dagger.Directory
-	// The agent's "computer" (running in a sandboxed container)
-	Computer *dagger.Container
-	// All changes the agent made to its filesystem
-	Changes *dagger.Directory
+	Model       ModelName       // +private
+	Token       *dagger.Secret  // +private
+	HistoryJSON string          // +private
+	Sandbox     *dagger.Sandbox // +private
 }
 
-type SecretVariable struct {
-	Name  string
-	Value *dagger.Secret
-}
-
-func (gpt Gpt) WithSecret(name string, value *dagger.Secret) Gpt {
-	gpt.Computer = gpt.Computer.WithSecretVariable(name, value)
-	return gpt
-}
-
-// An OpenAI model name
-type ModelName = string
-
-// Add knowledge by reading text files from a directory
-// Any .txt or .md file will be read.
-// - The first paragraph is the description
-// - The rest of the file is the contents
-func (gpt Gpt) WithKnowledgeDir(ctx context.Context, dir *dagger.Directory) (Gpt, error) {
-	txtPaths, err := dir.Glob(ctx, "**/*.txt")
-	if err != nil {
-		return gpt, err
-	}
-	mdPaths, err := dir.Glob(ctx, "**/*.md")
-	if err != nil {
-		return gpt, err
-	}
-	paths := append(txtPaths, mdPaths...)
-	toolnameRE := regexp.MustCompile("[^a-zA-Z0-9_-]")
-	for _, p := range paths {
-		doc, err := dir.File(p).Contents(ctx)
-		if err != nil {
-			return gpt, err
-		}
-		// Use regex to split paragraphs, allowing for any amount of whitespace or newlines
-		re := regexp.MustCompile(`(?m)^\s*$`)
-		parts := re.Split(doc, 2)
-		description := strings.TrimSpace(parts[0])
-		contents := ""
-		if len(parts) > 1 {
-			contents = strings.TrimSpace(parts[1])
-		}
-		// Scrub filename
-		p = p[:len(p)-len(filepath.Ext(p))]
-		name := toolnameRE.ReplaceAllString(p, "")
-		gpt = gpt.WithKnowledge(name, description, contents)
-	}
-	return gpt, nil
-}
-
-// An individual piece of knowledge
-type Knowledge struct {
-	Name        string
-	Description string
-	Contents    string
-}
-
-// Inject knowledge
-func (m Gpt) WithKnowledge(
-	// Unique name. Not semantically meaningful
-	name,
-	// Description for the knowledge. Keep it short, like the cover of a book.
-	// The model uses it to decide which book to read
-	description,
-	// Contents of the knowledge. This is like the contents of the book.
-	// It will only be read by the model if it decides to lookup based on the description.
-	contents string,
-) Gpt {
-	m.KnowledgeBase = append(m.KnowledgeBase, Knowledge{
-		Name:        name,
-		Description: description,
-		Contents:    contents,
-	})
+func (m Gpt) WithSecret(name string, value *dagger.Secret) Gpt {
+	m.Sandbox = m.Sandbox.WithSecret(name, value)
 	return m
 }
 
-// Lookup a piece of knowledge by name
-func (m Gpt) Knowledge(name string) (*Knowledge, error) {
-	for _, knowledge := range m.KnowledgeBase {
-		if knowledge.Name == name {
-			return &knowledge, nil
-		}
-	}
-	return nil, fmt.Errorf("no such knowledge: %s", name)
+func (m Gpt) WithDirectory(dir *dagger.Directory) Gpt {
+	m.Sandbox = m.Sandbox.WithHome(m.Sandbox.Home().WithDirectory(".", dir))
+	return m
+}
+
+func (m Gpt) Host() *dagger.Container {
+	return m.Sandbox.Host()
+}
+
+func (m Gpt) Changes() *dagger.Directory {
+	return m.Sandbox.Changes()
+}
+
+func (m Gpt) History(ctx context.Context) ([]string, error) {
+	return m.Sandbox.History(ctx)
 }
 
 func (m Gpt) withReply(ctx context.Context, message openai.ChatCompletionMessage) Gpt {
 	if len(message.Content) != 0 {
-		log := "🤖: " + message.Content
-		_, span := Tracer().Start(ctx, log)
-		span.End()
-		m.Log = append(m.Log, log)
+		m.Sandbox = m.Sandbox.WithNote(message.Content)
 	}
 	hist := m.loadHistory(ctx)
 	hist = append(hist, message)
-	m.LastReply = message.Content
 	return m.saveHistory(hist)
 }
 
@@ -178,29 +87,21 @@ func (m Gpt) WithToolOutput(ctx context.Context, callId, content string) Gpt {
 }
 
 func (m Gpt) WithPrompt(ctx context.Context, prompt string) Gpt {
-	log := "🧑: " + prompt
-	ctx, span := Tracer().Start(ctx, log)
-	span.End()
+	m.Sandbox = m.Sandbox.WithNote(prompt, dagger.SandboxWithNoteOpts{
+		Username: "🧑",
+	})
 	hist := m.loadHistory(ctx)
 	hist = append(hist, openai.UserMessage(prompt))
-	m.Log = append(m.Log, log)
 	return m.saveHistory(hist)
 }
 
 func (m Gpt) WithSystemPrompt(ctx context.Context, prompt string) Gpt {
-	log := "🧬: " + prompt
-	ctx, span := Tracer().Start(ctx, log)
-	span.End()
+	m.Sandbox = m.Sandbox.WithNote(prompt, dagger.SandboxWithNoteOpts{
+		Username: "🧬",
+	})
 	hist := m.loadHistory(ctx)
 	hist = append(hist, openai.SystemMessage(prompt))
-	m.Log = append(m.Log, log)
 	return m.saveHistory(hist)
-}
-
-// Configure the agent's home directory. Use this to give it files.
-func (gpt Gpt) WithHome(home *dagger.Directory) Gpt {
-	gpt.Home = home
-	return gpt
 }
 
 func (m Gpt) Ask(
@@ -233,110 +134,20 @@ func (m Gpt) Ask(
 				if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
 					return m, err
 				}
-				log := fmt.Sprintf("🤖💻 " + args["command"].(string))
-				ctx, span := Tracer().Start(ctx, log)
-				result, err := m.toolRun(ctx, args["command"].(string))
+				m.Sandbox = m.Sandbox.Run(args["command"].(string))
+				result, err := m.Sandbox.LastRun().ResultJSON(ctx)
 				if err != nil {
 					return m, err
 				}
-				if result.ExitCode == 0 {
-					log = "✅" + log
-				} else {
-					log = "⚠️" + log
-				}
-				m.Log = append(m.Log, log)
-				m.Changes = m.Computer.Rootfs().Diff(result.Computer.Rootfs())
-				m.Computer = result.Computer
-				m.Home = m.Computer.Directory(".")
-				resultJson, err := json.Marshal(result)
-				if err != nil {
-					return m, err
-				}
-				m = m.WithToolOutput(ctx, call.ID, string(resultJson))
-				cmd := Command{
-					Command: args["command"].(string),
-				}
-				if result.ExitCode == 0 {
-					cmd.Success = true
-					cmd.Result = result.Stdout
-				} else {
-					cmd.Success = false
-					cmd.Error = result.Stderr
-					span.SetStatus(codes.Error, cmd.Error)
-				}
-				span.End()
-				m.ShellHistory = append(m.ShellHistory, cmd)
-
+				m = m.WithToolOutput(ctx, call.ID, result)
 			default:
-				knowledge, err := m.Knowledge(call.Function.Name)
+				contents, err := m.Sandbox.ReadManual(ctx, call.Function.Name)
 				if err != nil {
 					return m, err
 				}
-				log := "🤖📖 \"" + knowledge.Description + "\""
-				m.Log = append(m.Log, log)
-				_, span := Tracer().Start(ctx, log)
-				span.End()
-				m = m.WithToolOutput(ctx, call.ID, knowledge.Contents)
+				m = m.WithToolOutput(ctx, call.ID, contents)
 			}
 		}
 	}
 	return m, nil
-}
-
-type Command struct {
-	Command string
-	Success bool
-	Result  string
-	Error   string
-}
-
-func (gpt Gpt) HistoryFile() *dagger.File {
-	var snippets []string
-	for _, cmd := range gpt.ShellHistory {
-		snippet := fmt.Sprintf("<cmd>\n%s\n</cmd>\n<success>%t</success>\n<result>\n%s\n</result>\n<error>\n%s\n</error>",
-			cmd.Command, cmd.Success, cmd.Result, cmd.Error)
-		snippets = append(snippets, snippet)
-	}
-	return dag.Directory().WithNewFile("commands", strings.Join(snippets, "\n")).File("commands")
-}
-
-type toolRunResult struct {
-	Stdout   string
-	Stderr   string
-	ExitCode int
-	Home     *dagger.Directory `json:"-"`
-	Computer *dagger.Container `json:"-"`
-}
-
-func (m Gpt) toolRun(ctx context.Context, command string) (*toolRunResult, error) {
-	// Execute the command
-	cmd := m.Computer.
-		WithDirectory(".", m.Home).
-		WithExec(
-			[]string{"dagger", "shell", "-s"},
-			dagger.ContainerWithExecOpts{
-				ExperimentalPrivilegedNesting: true,
-				Expect:                        dagger.ReturnTypeAny,
-				Stdin:                         command,
-			},
-		)
-	stdout, err := cmd.Stdout(ctx)
-	if err != nil {
-		return nil, err
-	}
-	stderr, err := cmd.Stderr(ctx)
-	if err != nil {
-		return nil, err
-	}
-	exitCode, err := cmd.ExitCode(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &toolRunResult{
-		Stdout:   stdout,
-		Stderr:   stderr,
-		ExitCode: exitCode,
-		Home:     cmd.Directory("."),
-		Computer: cmd,
-	}, nil
 }

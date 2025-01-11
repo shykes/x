@@ -10,6 +10,9 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
+// An OpenAI model name
+type ModelName = string
+
 const (
 	ModelNameO1Preview                      ModelName = "o1-preview"
 	ModelNameO1Preview2024_09_12            ModelName = "o1-preview-2024-09-12"
@@ -56,13 +59,10 @@ func (m Gpt) oaiQuery(ctx context.Context) (comp *openai.ChatCompletion, rerr er
 		}
 		span.End()
 	}()
-
-	span.AddEvent("retrieving API token")
 	key, err := m.Token.Plaintext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	span.AddEvent("preparing API request")
 	client := openai.NewClient(
 		option.WithAPIKey(key),
 		option.WithHeader("Content-Type", "application/json"),
@@ -84,12 +84,24 @@ func (m Gpt) oaiQuery(ctx context.Context) (comp *openai.ChatCompletion, rerr er
 		}),
 	}
 	tools := []openai.ChatCompletionToolParam{runTool}
-	for _, knowledge := range m.KnowledgeBase {
+	manuals, err := m.Sandbox.Manuals(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, man := range manuals {
+		key, err := man.Key(ctx)
+		if err != nil {
+			return nil, err
+		}
+		description, err := man.Description(ctx)
+		if err != nil {
+			return nil, err
+		}
 		tools = append(tools, openai.ChatCompletionToolParam{
 			Type: openai.F(openai.ChatCompletionToolTypeFunction),
 			Function: openai.F(openai.FunctionDefinitionParam{
-				Name:        openai.String(knowledge.Name),
-				Description: openai.String(knowledge.Description),
+				Name:        openai.String(key),
+				Description: openai.String(description),
 			}),
 		})
 	}
@@ -99,18 +111,6 @@ func (m Gpt) oaiQuery(ctx context.Context) (comp *openai.ChatCompletion, rerr er
 		Messages: openai.F(m.loadHistory(ctx)),
 		Tools:    openai.F(tools),
 	}
-	//paramsJSON, err := params.MarshalJSON()
-	//if err != nil {
-	//	return nil, err
-	//}
-	//fmt.Printf("Sending openai request:\n----\n%s\n----\n", paramsJSON)
-	ctx, span = Tracer().Start(ctx, "sending API request")
-	defer func() {
-		if rerr != nil {
-			span.SetStatus(codes.Error, rerr.Error())
-		}
-		span.End()
-	}()
 	return client.Chat.Completions.New(ctx, params)
 }
 
@@ -160,8 +160,6 @@ func (msg Message) Text() (string, error) {
 }
 
 func (m Gpt) loadHistory(ctx context.Context) []openai.ChatCompletionMessageParamUnion {
-	ctx, span := Tracer().Start(ctx, "loading openai history")
-	defer span.End()
 	if m.HistoryJSON == "" {
 		return nil
 	}

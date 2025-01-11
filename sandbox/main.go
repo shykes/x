@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"dagger/sandbox/internal/dagger"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -14,7 +15,7 @@ import (
 func New() Sandbox {
 	return Sandbox{
 		Home:      dag.Directory(),
-		Base:      dag.Wolfi().Container(),
+		Base:      dag.Container().From("docker.io/library/alpine:latest@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45"),
 		DaggerCli: dag.DaggerCli().Binary(),
 		Username:  "👤",
 	}
@@ -28,11 +29,12 @@ type Sandbox struct {
 	// User name (for traces and logs)
 	// +private
 	Username string
-	// History of script execution
-	History []Run
+	// Runs of script execution
+	Runs []Run
 	// Instruction manuals for the user of the sandbox
 	Manuals   []Manual
 	DaggerCli *dagger.File // +private
+	History   []string
 }
 
 // The host container for the sandbox
@@ -47,7 +49,7 @@ func (s Sandbox) Host() *dagger.Container {
 // All filesystem changes made to the host sandbox so far
 func (s Sandbox) Changes() *dagger.Directory {
 	changes := dag.Directory()
-	for _, run := range s.History {
+	for _, run := range s.Runs {
 		// FIXME: are deletions tracked by Directory.Diff? If so, how to handle them properly?
 		changes = changes.WithDirectory("/", run.Changes())
 	}
@@ -74,12 +76,31 @@ func (s Sandbox) WithHome(home *dagger.Directory) Sandbox {
 func (s Sandbox) ReadManual(ctx context.Context, key string) (string, error) {
 	for _, man := range s.Manuals {
 		if man.Key == key {
-			span, _ := Tracer().Start(ctx, fmt.Sprintf("[%s] 📖 %s", s.Username, man.Description))
+			event := fmt.Sprintf("[%s] 📖 %s", s.Username, man.Description)
+			span, _ := Tracer().Start(ctx, event)
 			span.Done()
+			s.History = append(s.History, event)
 			return man.Contents, nil
 		}
 	}
 	return "", fmt.Errorf("no such manual: %s", key)
+}
+
+// Add a note to the sandbox history on behalf of the sandbox user
+func (s Sandbox) WithNote(ctx context.Context,
+	note string,
+	// The name of the user leaving the note. Default to the sandbox username
+	// +optional
+	username string,
+) Sandbox {
+	if username == "" {
+		username = s.Username
+	}
+	event := fmt.Sprintf("[%s] %s", username, note)
+	ctx, span := Tracer().Start(ctx, event)
+	span.End()
+	s.History = append(s.History, event)
+	return s
 }
 
 func (s Sandbox) WithManual(
@@ -142,6 +163,13 @@ type Manual struct {
 	Contents    string
 }
 
+func (s Sandbox) LastRun() (*Run, error) {
+	if len(s.Runs) == 0 {
+		return nil, fmt.Errorf("no run in the history")
+	}
+	return &s.Runs[len(s.Runs)-1], nil
+}
+
 // Run a script in the sandbox
 func (s Sandbox) Run(
 	ctx context.Context,
@@ -179,7 +207,7 @@ func (s Sandbox) Run(
 	if exitCode != 0 {
 		span.SetStatus(codes.Error, stderr)
 	}
-	s.History = append(s.History, Run{
+	run := Run{
 		Username:   s.Username,
 		HostBefore: hostBefore,
 		Script:     script,
@@ -187,7 +215,9 @@ func (s Sandbox) Run(
 		Stderr:     stderr,
 		ExitCode:   exitCode,
 		HostAfter:  hostAfter,
-	})
+	}
+	s.Runs = append(s.Runs, run)
+	s.History = append(s.History, run.Short())
 	s.Base = hostAfter.WithoutDirectory("$HOME", dagger.ContainerWithoutDirectoryOpts{Expand: true})
 	s.Home = hostAfter.Directory("$HOME", dagger.ContainerDirectoryOpts{Expand: true})
 	return s, nil
@@ -216,4 +246,21 @@ func (r Run) Short() string {
 // All filesystem changes made by the run
 func (r Run) Changes() *dagger.Directory {
 	return r.HostBefore.Rootfs().Diff(r.HostAfter.Rootfs())
+}
+
+// Encode the run result as JSON
+func (r Run) ResultJSON() (string, error) {
+	var res struct {
+		Stdout   string
+		Stderr   string
+		ExitCode int
+	}
+	res.Stdout = r.Stdout
+	res.Stderr = r.Stderr
+	res.ExitCode = r.ExitCode
+	b, err := json.Marshal(res)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }

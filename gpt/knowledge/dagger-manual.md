@@ -361,7 +361,7 @@ This manual explains how to use dagger.
                 use double dash to avoid with-exec incorrectly interpreting arguments meant for the executed tool
             </description>
             <script>
-                container | from alpine | with-exec ls -- -l
+                container | from alpine | with-exec -- ls -l
             </script>
         </example>
 

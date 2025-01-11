@@ -4,9 +4,8 @@
   "sdk": "go",
   "dependencies": [
     {
-      "name": "dagger-cli",
-      "source": "github.com/dagger/dagger/cmd/dagger",
-      "pin": "ab22a0cbb58ffc96e1dd3a1833686680322639da"
+      "name": "sandbox",
+      "source": "../sandbox"
     }
   ],
   "source": "."
