@@ -70,6 +70,16 @@ type Gpt struct {
 	Changes *dagger.Directory
 }
 
+type SecretVariable struct {
+	Name  string
+	Value *dagger.Secret
+}
+
+func (gpt Gpt) WithSecret(name string, value *dagger.Secret) Gpt {
+	gpt.Computer = gpt.Computer.WithSecretVariable(name, value)
+	return gpt
+}
+
 // An OpenAI model name
 type ModelName = string
 
