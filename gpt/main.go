@@ -152,17 +152,17 @@ func (m Gpt) withReply(ctx context.Context, message openai.ChatCompletionMessage
 		span.End()
 		m.Log = append(m.Log, log)
 	}
-	hist := m.loadHistory()
+	hist := m.loadHistory(ctx)
 	hist = append(hist, message)
 	m.LastReply = message.Content
 	return m.saveHistory(hist)
 }
 
-func (m Gpt) WithToolOutput(callId, content string) Gpt {
+func (m Gpt) WithToolOutput(ctx context.Context, callId, content string) Gpt {
 	// Remove all ANSI escape codes (eg. part of raw interactive shell output), to avoid json marshalling failing
 	re := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
 	content = re.ReplaceAllString(content, "")
-	hist := m.loadHistory()
+	hist := m.loadHistory(ctx)
 	hist = append(hist, openai.ToolMessage(callId, content))
 	return m.saveHistory(hist)
 }
@@ -171,7 +171,7 @@ func (m Gpt) WithPrompt(ctx context.Context, prompt string) Gpt {
 	log := "🧑: " + prompt
 	ctx, span := Tracer().Start(ctx, log)
 	span.End()
-	hist := m.loadHistory()
+	hist := m.loadHistory(ctx)
 	hist = append(hist, openai.UserMessage(prompt))
 	m.Log = append(m.Log, log)
 	return m.saveHistory(hist)
@@ -181,7 +181,7 @@ func (m Gpt) WithSystemPrompt(ctx context.Context, prompt string) Gpt {
 	log := "🧬: " + prompt
 	ctx, span := Tracer().Start(ctx, log)
 	span.End()
-	hist := m.loadHistory()
+	hist := m.loadHistory(ctx)
 	hist = append(hist, openai.SystemMessage(prompt))
 	m.Log = append(m.Log, log)
 	return m.saveHistory(hist)
@@ -224,12 +224,17 @@ func (m Gpt) Ask(
 					return m, err
 				}
 				log := fmt.Sprintf("🤖💻 " + args["command"].(string))
-				m.Log = append(m.Log, log)
 				ctx, span := Tracer().Start(ctx, log)
 				result, err := m.toolRun(ctx, args["command"].(string))
 				if err != nil {
 					return m, err
 				}
+				if result.ExitCode == 0 {
+					log = "✅" + log
+				} else {
+					log = "⚠️" + log
+				}
+				m.Log = append(m.Log, log)
 				m.Changes = m.Computer.Rootfs().Diff(result.Computer.Rootfs())
 				m.Computer = result.Computer
 				m.Home = m.Computer.Directory(".")
@@ -237,7 +242,7 @@ func (m Gpt) Ask(
 				if err != nil {
 					return m, err
 				}
-				m = m.WithToolOutput(call.ID, string(resultJson))
+				m = m.WithToolOutput(ctx, call.ID, string(resultJson))
 				cmd := Command{
 					Command: args["command"].(string),
 				}
@@ -261,7 +266,7 @@ func (m Gpt) Ask(
 				m.Log = append(m.Log, log)
 				_, span := Tracer().Start(ctx, log)
 				span.End()
-				m = m.WithToolOutput(call.ID, knowledge.Contents)
+				m = m.WithToolOutput(ctx, call.ID, knowledge.Contents)
 			}
 		}
 	}

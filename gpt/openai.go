@@ -7,6 +7,7 @@ import (
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
+	"go.opentelemetry.io/otel/codes"
 )
 
 const (
@@ -46,12 +47,22 @@ const (
 	ModelNameGPT3_5Turbo16k0613             ModelName = "gpt-3.5-turbo-16k-0613"
 )
 
-func (m Gpt) oaiQuery(ctx context.Context) (*openai.ChatCompletion, error) {
+func (m Gpt) oaiQuery(ctx context.Context) (comp *openai.ChatCompletion, rerr error) {
 	// Initialize the OpenAI client
+	ctx, span := Tracer().Start(ctx, "🤖📡")
+	defer func() {
+		if rerr != nil {
+			span.SetStatus(codes.Error, rerr.Error())
+		}
+		span.End()
+	}()
+
+	span.AddEvent("retrieving API token")
 	key, err := m.Token.Plaintext(ctx)
 	if err != nil {
 		return nil, err
 	}
+	span.AddEvent("preparing API request")
 	client := openai.NewClient(
 		option.WithAPIKey(key),
 		option.WithHeader("Content-Type", "application/json"),
@@ -85,7 +96,7 @@ func (m Gpt) oaiQuery(ctx context.Context) (*openai.ChatCompletion, error) {
 	params := openai.ChatCompletionNewParams{
 		Seed:     openai.Int(0),
 		Model:    openai.F(openai.ChatModel(m.Model)),
-		Messages: openai.F(m.loadHistory()),
+		Messages: openai.F(m.loadHistory(ctx)),
 		Tools:    openai.F(tools),
 	}
 	//paramsJSON, err := params.MarshalJSON()
@@ -93,6 +104,13 @@ func (m Gpt) oaiQuery(ctx context.Context) (*openai.ChatCompletion, error) {
 	//	return nil, err
 	//}
 	//fmt.Printf("Sending openai request:\n----\n%s\n----\n", paramsJSON)
+	ctx, span = Tracer().Start(ctx, "sending API request")
+	defer func() {
+		if rerr != nil {
+			span.SetStatus(codes.Error, rerr.Error())
+		}
+		span.End()
+	}()
 	return client.Chat.Completions.New(ctx, params)
 }
 
@@ -141,7 +159,9 @@ func (msg Message) Text() (string, error) {
 	return "", fmt.Errorf("unsupported message role: %s", msg.Role)
 }
 
-func (m Gpt) loadHistory() []openai.ChatCompletionMessageParamUnion {
+func (m Gpt) loadHistory(ctx context.Context) []openai.ChatCompletionMessageParamUnion {
+	ctx, span := Tracer().Start(ctx, "loading openai history")
+	defer span.End()
 	if m.HistoryJSON == "" {
 		return nil
 	}
