@@ -228,7 +228,7 @@ func (m Gpt) Ask(
 				return m, err
 			}
 			switch call.Function.Name {
-			case "dagger-shell-command":
+			case "dagger":
 				var args map[string]interface{}
 				if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
 					return m, err

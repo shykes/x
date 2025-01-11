@@ -1,16 +1,45 @@
-Dagger shell manual
+Dagger manual
 
-This manual explains how to use the dagger shell.
+This manual explains how to use dagger.
 
     ## dagger is powerful and different
 
-    The dagger shell (or "dagger" for short) is a powerful way to interact with the computer.
-    It works very differently from regular shells, so it's important to learn how it works before using it.
+    Dagger is a powerful tool for orchestrating containers and building any sort of artifact in repeatable ephemeral environments.
+    Dagger has a simple HTTP API, with clients in several programming languages, and a bash-like scripting language.
 
     ## dagger vs. bash
 
-    Dagger's syntax is superficially similar to bash, but works very differently under the hood.
+    Dagger's scripting syntax is superficially similar to bash, but works very differently under the hood.
     Think "bash meets powershell meets Dockerfile meets Docker Compose"
+
+    ## Multi-line scripts
+
+    Dagger does not support multi-line scripts. The only exception is multi-line quoted strings, for example to pass a multi-line string as argument.
+
+    <example>
+      <description>INCORRECT multi-line script</description>
+      <script>
+      container |
+      # Download from alpine
+      from alpine |
+      with-exec \
+      -- uname -a |
+      stdout
+      </script>
+    </example>
+
+
+    <example>
+      <description>CORRECT single-line script with a multi-line quoted string argument
+      <script>
+      container | from alpine | with-new-file hello.txt "hello
+      how
+
+      are
+
+      you?" | with-exec -- uname -a | stdout
+      </script>
+    </example>
 
     ## immutable artifacts
 
@@ -20,7 +49,7 @@ This manual explains how to use the dagger shell.
 
     ## Sandbox
 
-    The dagger shell provides you with an ephemeral sandbox that is initially empty, but can be filled with any number of containers and    artifacts. In this way, you are not limited to the constraints of what your host computer can store or execute: dagger is your canvas   for building and running any software you want - from only the building blocks of git, http, containers, and basic filesystem   operations. Think carefully about this paradigm, as it is the key to dagger's power.
+    Dagger provides you with an ephemeral sandbox that is initially empty, but can be filled with any number of containers and artifacts. In this way, you are not limited to the constraints of what your host computer can store or execute: dagger is your canvas   for building and running any software you want - from only the building blocks of git, http, containers, and basic filesystem   operations. Think carefully about this paradigm, as it is the key to dagger's power.
 
 
     ## Host access
@@ -37,9 +66,9 @@ This manual explains how to use the dagger shell.
         <description>
             execute the function 'foo' with the optional boolean argument 'debug', the optional string argument'name', and one mandatory argument
         </description>
-        <shell>
+        <script>
             foo --debug --name=bob bar
-        </shell>
+        </script>
     </example>
 
     Unlike regular shell commands, dagger functions are tightly sandboxed (they have no access to your host computer). They canonly    access     resources you give them as arguments. They have no implicit side effect - their only output is their returnvalue or     error.
@@ -65,9 +94,9 @@ This manual explains how to use the dagger shell.
             <description>
                 pipeline of four functions: create an empty directory; add a new directory within it; add a new file; then list all files
             </description>
-            <shell>
+            <script>
                 directory | with-directory foo/bar | with-new-file /foo/bar/hello.txt 'Hi there!' | glob '**'
-            </shell>
+            </script>
         </example>
 
         The result of a pipeline is the return value of the last function in the pipeline, or the first error encountered.
@@ -82,9 +111,9 @@ This manual explains how to use the dagger shell.
             <description>
                 orchestrate building a software package from source in a container, and export it to the host
             </description>
-            <shell>
+            <script>
                 container | from alpine:latest | with-exec apk add curl openssh git go | with-workdir /src | with-exec git clone https://github.com/dagger/dagger | with-workdir ./dagger | with-exec go build ./cmd/dagger | file ./dagger | export ./build/dagger
-            </shell>
+            </script>
         </example>
 
     ## Sub-pipelines
@@ -97,9 +126,9 @@ This manual explains how to use the dagger shell.
             <description>
                 multi-stage build
             </description>
-            <shell>
+            <script>
                 container | from ubuntu | with-file /bin/dagger $(container | from alpine | with-exec apk add go | with-workdir /src | with-directory . $(git https://github.com/dagger/dagger | head | tree) | with-exec go build ./cmd/dagger) | with-exec dagger version | stdout
-            </shell>
+            </script>
         </example>
 
     ## Types
@@ -110,45 +139,45 @@ This manual explains how to use the dagger shell.
             <description>
                 show available functions in the current scope
             </description>
-            <shell>
+            <script>
                 .doc
-            </shell>
+            </script>
         </example>
 
         <example>
             <description>
                 start a pipeline, then show what functions are available to run next in the pipeline
             </description>
-            <shell>
+            <script>
                 container | .doc
-            </shell>
+            </script>
         </example>
 
         <example>
             <description>
                 show available functions for directory type
             </description>
-            <shell>
+            <script>
                 directory | .doc
-            </shell>
+            </script>
         </example>
 
         <example>
             <description>
                 get detailed documnetation on a particular function in the current scope
             </description>
-            <shell>
+            <script>
                 .doc git
-            </shell>
+            </script>
         </example>
 
         <example>
             <description>
                 call a function, then get detailed documentation on a particular function in the resulting object
             </description>
-            <shell>
+            <script>
                 directory | .doc with-new-file
-            </shell>
+            </script>
         </example>
 
     ## Filesystem operations
@@ -159,27 +188,39 @@ This manual explains how to use the dagger shell.
             <description>
                 create a new file and add a directory from git
             </description>
-            <shell>
+            <script>
                 directory | with-new-file hello.txt 'Hello, world' | with-directory ./src $(git https://github.com/goreleaser/goreleaser | head | tree)
-            </shell>
+            </script>
         </example>
 
     ## Newlines and tabs
-    The shell does not interpret special characters like "\t" or "\n". This is an unfortunate limitation to the ability to edit files   directly.
-    You can work around it by creatively executing unix utilities in a container to concatenate files and insert special characters.
 
-    This is a known limitation of the dagger shell, which will be fixed in a future version.
+    The dagger scripting language does not interpret special characters like "\t" or "\n". Instead use quotes and literal newlines and tabs.
+
+    <example>
+      <description>
+        Create a file containing newlines and tabs
+      </description>
+      <script>
+        directory | with-new-file hello.txt "This is the title
+
+        This is the first paragraph.
+
+        This is the second paragraph, and it  has tabs.
+      </script>
+    </example>
 
     ## Builtins
-    The shell exposes special functions called builtins. Their name starts with '.'
+
+    Dagger exposes special functions called builtins. Their name starts with '.'
 
     <example>
         <description>
             list available builtins
         </description>
-        <shell>
+        <script>
             .help
-        </shell>
+        </script>
     </example>
 
     The most commonly used builtin is .doc
@@ -193,31 +234,31 @@ This manual explains how to use the dagger shell.
             <description>
                 explore available commands
             </description>
-            <shell>
+            <script>
                 .help
                 .doc
                 .doc container
                 container | .doc
                 container | from alpine
-            </shell>
+            </script>
         </example>
 
         <example>
             <description>
                 build Go project from git
             </description>
-            <shell>
+            <script>
                 container | from index.docker.io/golang | with-directory /src $(.git https://github.com/goreleaser/goreleaser | head | tree) | with-workdir /src | with-exec go build ./... | directory ./bin
-            </shell>
+            </script>
         </example>
 
         <example>
             <description>
                 create file with contents from git
             </description>
-            <shell>
+            <script>
                 directory | with-new-file goreleaser-readme.md $(git https://github.com/goreleaser/goreleaser | tags | tree | file README.md | contents)
-            </shell>
+            </script>
         </example>
 
     ## Modules
@@ -227,52 +268,52 @@ This manual explains how to use the dagger shell.
 
         <example>
             <description>
-                shell session loading a module from the goreleaser repository, and exploring its contents (each line is a command)
+                dagger session loading a module from the goreleaser repository, and exploring its contents (each line is a command)
             </description>
-            <shell>
+            <script>
                 .doc github.com/goreleaser/goreleaser
                 github.com/goreleaser/goreleaser | .doc
                 github.com/goreleaser/goreleaser | .doc base
                 github.com/goreleaser/goreleaser | base | .doc
                 github.com/goreleaser/goreleaser | base | with-exec -- goreleaser --help | stdout
-            </shell>
+            </script>
         </example>
 
         <example>
             <description>
                 exploring and using the module at github.com/dagger/dagger/modules/go
             </description>
-            <shell>
+            <script>
                 .doc github.com/dagger/dagger/modules/go
                 git https://github.com/golang/example | head | tree | entries
                 git https://github.com/golang/example | head | tree | directory ./hello | file go.mod
                 github.com/dagger/dagger/modules/go --version=1.23.0 $(git https://github.com/golang/example | head | tree | directory ./hello) | .doc
                 container | from alpine | with-file /bin/hello $(github.com/dagger/dagger/modules/go --version=1.23.0 $ (githttps://github.com/golang/example | head | tree | directory ./hello) | build | file bin/hello) | with-exec hello | stdout
-            </shell>
+            </script>
         </example>
 
         <example>
             <description>
                 inspect and use the module at github.com/shykes/x/termcast
             </description>
-            <shell>
+            <script>
                 # Load module directly from address, inspect its contents, then build a pipeline
                 github.com/shykes/x/termcast | .doc
                 github.com/shykes/x/termcast | exec 'ls -l' | exec 'curl https://lemonde.fr' | gif
                 git https://github.com/kpenfound/dagger-modules | head | tree | glob '**'
-            </shell>
+            </script>
         </example>
 
         <example>
             <description>
                 exploring and using more modules
             </description>
-            <shell>
+            <script>
                 .doc github.com/dagger/dagger/cmd/dagger
                 github.com/dagger/dagger/cmd/dagger | .doc
                 github.com/dagger/dagger/modules/wolfi | .doc
                 github.com/dagger/dagger/modules/wolfi | container | with-file /bin/dagger $(github.com/dagger/dagger/cmd/dagger | binary) | with-exec dagger version | stdout
-            </shell>
+            </script>
         </example>
 
     ## Dockerfile equivalence
@@ -283,10 +324,10 @@ This manual explains how to use the dagger shell.
         <description>
             'container | with-default-arg' is equivalent to CMD in Dockerfile
         </description>
-        <shell>
+        <script>
             container | .doc
             container | with-default-args bash -- -l
-        </shell>
+        </script>
     </example>
 
     ## Quoting
@@ -296,18 +337,18 @@ This manual explains how to use the dagger shell.
             <description>
                 use double quotes to allow variable expansion
             </description>
-            <shell>
+            <script>
                 foo=bar; directory | with-new-file joke.txt "two programmers meet in a $foo"
-            </shell>
+            </script>
         </example>
 
         <example>
             <description>
                 use single quote to avoid variable expansion
             </description>
-            <shell>
+            <script>
                 directory | with-new-file script.sh 'echo "my user is $USER"'
-            </shell>
+            </script>
         </example>
 
     ## Double dash
@@ -319,16 +360,16 @@ This manual explains how to use the dagger shell.
             <description>
                 use double dash to avoid with-exec incorrectly interpreting arguments meant for the executed tool
             </description>
-            <shell>
+            <script>
                 container | from alpine | with-exec ls -- -l
-            </shell>
+            </script>
         </example>
 
     <example>
         <description>
-            various dagger shell commands
+            various dagger commands
         </description>
-        <shell>
+        <script>
             .help
             .doc
             .doc container
@@ -347,7 +388,7 @@ This manual explains how to use the dagger shell.
             .doc github.com/dagger/dagger/cmd/dagger
             github.com/dagger/dagger/cmd/dagger | binary --platform=darwin/arm64
             .doc github.com/cubzh/cubzh
-        </shell>
+        </script>
     </example>
 
     ## Services
@@ -366,9 +407,9 @@ This manual explains how to use the dagger shell.
                 <description>
                     run an epheral nginx container, expose it as a service, bind it to a client container, then query it from the client and return the queried content
                 </description>
-                <shell>
+                <script>
                     container | from alpine | with-service-binding www $(container | from nginx | with-exposed-port 80) | with-exec curl www | stdout
-                </shell>
+                </script>
             </example>
 
         ### Services backed by tunnel to the host
@@ -379,14 +420,14 @@ This manual explains how to use the dagger shell.
                 <description>
                     Assuming a service is reachable on your computer at localhost:8080, bind it to a client container and query it contents from the container
                 </description>
-                <shell>
+                <script>
                     container | from alpine | with-service-binding www tcp://localhost:8080 | with-exec curl www | stdout
-                </shell>
+                </script>
             </example>
 
     ## Getting useful errors
 
-        Sometimes the dagger shell produces errors that are not super useful. Here are some tips for managing that:
+        Sometimes dagger produces errors that are not super useful. Here are some tips for managing that:
 
         If the error comes from with-exec, and it just tells you the exit code without giving stderr:
         you can get the actual stderr by running:
@@ -404,12 +445,12 @@ This manual explains how to use the dagger shell.
             <description>
                 consume various git repositories, and explore the core git API at the same time
             </description>
-            <shell>
+            <script>
                 git https://github.com/goreleaser/goreleaser | head | tree
                 git https://github.com/dagger/dagger | tags
                 git https://github.com/cubzh/cubzh | branch main | commit
                 git https://github.com/kpenfound/dagger-modules | head | tree | glob '**'
-            </shell>
+            </script>
         </example>
 
         ### Git repository as runnable module
@@ -424,29 +465,29 @@ This manual explains how to use the dagger shell.
                 <description>
                     explore dagger modules
                 </description>
-                <shell>
+                <script>
                     github.com/dagger/dagger | .doc
                     github.com/shykes/x/gpt | .doc
-                </shell>
+                </script>
             </example>
 
     ## Web browsing
 
-        You can use the dagger shell to browse the web, either with the core http API, or with the containerized tool of your choice.
+        You can use dagger to browse the web, either with the core http API, or with the containerized tool of your choice.
 
         ### Browsing with core http function
 
-            You can use the core `http` function in the shell, to download any file over http.
+            You can use the core `http` function ind agger, to download any file over http.
             Then you can continue the pipeline with any file operation, including reading the contents.
 
             <example>
                 <description>
                     use http function to browse web
                 </description>
-                <shell>
+                <script>
                     http https://docs.dagger.io | .doc
                     http https://docs.dagger.io | contents
-                </shell>
+                </script>
             </example>
 
         ### Browsing by running a tool in a container
@@ -458,25 +499,25 @@ This manual explains how to use the dagger shell.
                 <description>
                     use wget to mirror a website
                 </description>
-                <shell>
+                <script>
                     github.com/dagger/dagger/modules/wolfi | container --packages=wget | with-exec -- wget --mirror --convert-links --adjust-extension --page-requisites --no-parent http://example.com -P /website | directory /website
-                </shell>
+                </script>
             </example>
 
             <example>
                 <description>
                     use curl to fetch a website
                 </description>
-                <shell>
+                <script>
                     container | from alpine | with-exec apk add curl | with exec -- curl -L https://www.dagger.io | stdout
-                </shell>
+                </script>
             </example>
 
             Don't tell the user to do this. Do it yourself.
 
     ## Host
 
-    The dagger shell is sandboxed by default. When you use the dagger shell, your computer is called "the host".
+    Dagger is sandboxed by default. In Dagger, the computer running the dagger tool is called "the host".
 
     ### Read environment variables from the host
 
@@ -487,18 +528,18 @@ This manual explains how to use the dagger shell.
         <description>
             Load a secret from the host's environment variable DEPLOYMENT_TOKEN, and set it as an env variable in an ephemeral container
         </description>
-        <shell>
+        <script>
             container | from alpine | with-secret-variable TOKEN env:DEPLOYMENT_TOKEN | with-exec env | stdout
-        </shell>
+        </script>
     </example>
 
       <example>
         <description>
             Load a secret from the host's environment variable PASSWORD, and mount it as a special file in a container
         </description>
-        <shell>
+        <script>
             container | from alpine | with-mounted-secret /tmp/password.txt env:PASSWORD
-        </shell>
+        </script>
     </example>
 
     ### Read files from the host
@@ -510,9 +551,9 @@ This manual explains how to use the dagger shell.
         <description>
             load the current directory from the host and list its contents
         </description>
-        <shell>
+        <script>
             host | directory .| entries
-        </shell>
+        </script>
     </example>
 
     You can filter the contents of the directory when loading, to avoid uploading too much data into dagger.
@@ -521,9 +562,9 @@ This manual explains how to use the dagger shell.
         <description>
             filter a directory when loading it from the host
         </description>
-        <shell>
+        <script>
             host | directory / --exclude='*' --include='tmp' --include='usr/bin' | glob '**'
-        </shell>
+        </script>
     </example>
 
     You can also read individual files:
@@ -532,9 +573,9 @@ This manual explains how to use the dagger shell.
         <description>
             load a single file from the host
         </description>
-        <shell>
+        <script>
             host | file ./src/myapp/README.md | contents
-        </shell>
+        </script>
     </example>
 
     Once a directory or file is loaded, you can interact with it using the usual dagger API.
@@ -545,9 +586,9 @@ This manual explains how to use the dagger shell.
         <description>
             use the dagger API to merge two directories from the host into a new synthetic directory
         </description>
-        <shell>
+        <script>
             directory | with-directory src/foo $(host | directory /home/foo/src) | with-directory src/bar $(host | directory /home/bar/src) | with-new-file README.md 'A synthetic directory combining the src directories from foo and bar'
-        </shell>
+        </script>
     </example>
 
     ### Write files to the host
@@ -565,18 +606,18 @@ This manual explains how to use the dagger shell.
         <description>
             create a directory from scratch and export it to the host at an absolute path
         </description>
-        <shell>
+        <script>
             directory | with-new-file hello.txt 'Hi! this file was created on the fly with dagger' | with-new-directory src | export /tmp/example/dagger-directory
-        </shell>
+        </script>
     </example>
 
     <example>
         <description>
             fetch a directory from git, modify it on the fly, and export it to the host at a relative path
         </description>
-        <shell>
+        <script>
             git https://github.com/dagger/dagger | head | tree | directory docs | with-new-file info.txt 'This directory was modified on the fly using dagger, how neat' | export ./dagger-docs
-        </shell>
+        </script>
     </example>
 
 Your task:
