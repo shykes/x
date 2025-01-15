@@ -1,12 +1,6 @@
 {
   "name": "gpt",
-  "engineVersion": "v0.15.1",
+  "engineVersion": "v0.15.2",
   "sdk": "go",
-  "dependencies": [
-    {
-      "name": "sandbox",
-      "source": "../sandbox"
-    }
-  ],
   "source": "."
 }

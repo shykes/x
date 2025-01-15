@@ -28,10 +28,14 @@ func New(
 	systemPrompt *dagger.File,
 ) (Gpt, error) {
 	gpt := Gpt{
-		Token:   token,
-		Model:   model,
-		Sandbox: dag.Sandbox().WithUsername("🤖").ImportManuals(knowledgeDir),
+		Token: token,
+		Model: model,
 	}
+	sandbox, err := NewSandbox().WithUsername("🤖").ImportManuals(ctx, knowledgeDir)
+	if err != nil {
+		return gpt, err
+	}
+	gpt.Sandbox = sandbox
 	prompt, err := systemPrompt.Contents(ctx)
 	if err != nil {
 		return gpt, err
@@ -40,10 +44,10 @@ func New(
 }
 
 type Gpt struct {
-	Model       ModelName       // +private
-	Token       *dagger.Secret  // +private
-	HistoryJSON string          // +private
-	Sandbox     *dagger.Sandbox // +private
+	Model       ModelName      // +private
+	Token       *dagger.Secret // +private
+	HistoryJSON string         // +private
+	Sandbox     Sandbox        // +private
 }
 
 func (m Gpt) WithSecret(name string, value *dagger.Secret) Gpt {
@@ -52,7 +56,7 @@ func (m Gpt) WithSecret(name string, value *dagger.Secret) Gpt {
 }
 
 func (m Gpt) WithDirectory(dir *dagger.Directory) Gpt {
-	m.Sandbox = m.Sandbox.WithHome(m.Sandbox.Home().WithDirectory(".", dir))
+	m.Sandbox = m.Sandbox.WithHome(m.Sandbox.Home.WithDirectory(".", dir))
 	return m
 }
 
@@ -64,13 +68,13 @@ func (m Gpt) Changes() *dagger.Directory {
 	return m.Sandbox.Changes()
 }
 
-func (m Gpt) History(ctx context.Context) ([]string, error) {
-	return m.Sandbox.History(ctx)
+func (m Gpt) History() []string {
+	return m.Sandbox.History
 }
 
 func (m Gpt) withReply(ctx context.Context, message openai.ChatCompletionMessage) Gpt {
 	if len(message.Content) != 0 {
-		m.Sandbox = m.Sandbox.WithNote(message.Content)
+		m.Sandbox = m.Sandbox.WithNote(ctx, message.Content, "")
 	}
 	hist := m.loadHistory(ctx)
 	hist = append(hist, message)
@@ -87,18 +91,14 @@ func (m Gpt) WithToolOutput(ctx context.Context, callId, content string) Gpt {
 }
 
 func (m Gpt) WithPrompt(ctx context.Context, prompt string) Gpt {
-	m.Sandbox = m.Sandbox.WithNote(prompt, dagger.SandboxWithNoteOpts{
-		Username: "🧑",
-	})
+	m.Sandbox = m.Sandbox.WithNote(ctx, prompt, "🧑")
 	hist := m.loadHistory(ctx)
 	hist = append(hist, openai.UserMessage(prompt))
 	return m.saveHistory(hist)
 }
 
 func (m Gpt) WithSystemPrompt(ctx context.Context, prompt string) Gpt {
-	m.Sandbox = m.Sandbox.WithNote(prompt, dagger.SandboxWithNoteOpts{
-		Username: "🧬",
-	})
+	m.Sandbox = m.Sandbox.WithNote(ctx, prompt, "🧬")
 	hist := m.loadHistory(ctx)
 	hist = append(hist, openai.SystemMessage(prompt))
 	return m.saveHistory(hist)
@@ -134,18 +134,25 @@ func (m Gpt) Ask(
 				if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
 					return m, err
 				}
-				m.Sandbox = m.Sandbox.Run(args["command"].(string))
-				result, err := m.Sandbox.LastRun().ResultJSON(ctx)
+				m.Sandbox, err = m.Sandbox.Run(ctx, args["command"].(string))
+				if err != nil {
+					return m, err
+				}
+				run, err := m.Sandbox.LastRun()
+				if err != nil {
+					return m, err
+				}
+				result, err := run.ResultJSON()
 				if err != nil {
 					return m, err
 				}
 				m = m.WithToolOutput(ctx, call.ID, result)
 			default:
-				contents, err := m.Sandbox.ReadManual(ctx, call.Function.Name)
+				manual, err := m.Sandbox.Manual(ctx, call.Function.Name)
 				if err != nil {
 					return m, err
 				}
-				m = m.WithToolOutput(ctx, call.ID, contents)
+				m = m.WithToolOutput(ctx, call.ID, manual.Contents)
 			}
 		}
 	}

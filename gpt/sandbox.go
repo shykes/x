@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"dagger/sandbox/internal/dagger"
+	"dagger/gpt/internal/dagger"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -12,12 +12,17 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
-func New() Sandbox {
+func NewSandbox() Sandbox {
 	return Sandbox{
-		Home:      dag.Directory(),
-		Base:      dag.Container().From("docker.io/library/alpine:latest@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45"),
-		DaggerCli: dag.DaggerCli().Binary(),
-		Username:  "👤",
+		Home: dag.Directory(),
+		Base: dag.Container().From("docker.io/library/alpine:latest@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45"),
+		// FIXME: disable building dagger CLI from source, because of annoying cache misses in our CLI build
+		// DaggerCli: dag.DaggerCli().Binary(),
+		DaggerCli: dag.
+			Container().
+			From("registry.dagger.io/engine:v0.15.2@sha256:3c721e576603a28e7293b7b7e664b6ab77cd4d1ff911039de405f3cf7c1990d5").
+			File("/usr/local/bin/dagger"),
+		Username: "👤",
 	}
 }
 

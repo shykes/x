@@ -84,24 +84,16 @@ func (m Gpt) oaiQuery(ctx context.Context) (comp *openai.ChatCompletion, rerr er
 		}),
 	}
 	tools := []openai.ChatCompletionToolParam{runTool}
-	manuals, err := m.Sandbox.Manuals(ctx)
+	manuals := m.Sandbox.Manuals
 	if err != nil {
 		return nil, err
 	}
 	for _, man := range manuals {
-		key, err := man.Key(ctx)
-		if err != nil {
-			return nil, err
-		}
-		description, err := man.Description(ctx)
-		if err != nil {
-			return nil, err
-		}
 		tools = append(tools, openai.ChatCompletionToolParam{
 			Type: openai.F(openai.ChatCompletionToolTypeFunction),
 			Function: openai.F(openai.FunctionDefinitionParam{
-				Name:        openai.String(key),
-				Description: openai.String(description),
+				Name:        openai.String(man.Key),
+				Description: openai.String(man.Description),
 			}),
 		})
 	}
