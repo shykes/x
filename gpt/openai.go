@@ -52,7 +52,7 @@ const (
 
 func (m Gpt) oaiQuery(ctx context.Context) (comp *openai.ChatCompletion, rerr error) {
 	// Initialize the OpenAI client
-	ctx, span := Tracer().Start(ctx, "🤖📡")
+	ctx, span := Tracer().Start(ctx, "[🤖] 💭")
 	defer func() {
 		if rerr != nil {
 			span.SetStatus(codes.Error, rerr.Error())
