@@ -47,7 +47,12 @@ type Gpt struct {
 	Model       ModelName      // +private
 	Token       *dagger.Secret // +private
 	HistoryJSON string         // +private
-	Sandbox     Sandbox        // +private
+	Sandbox     Sandbox
+}
+
+func (m Gpt) WithSandbox(sandbox Sandbox) Gpt {
+	m.Sandbox = sandbox
+	return m
 }
 
 func (m Gpt) WithSecret(name string, value *dagger.Secret) Gpt {
@@ -60,12 +65,16 @@ func (m Gpt) WithDirectory(dir *dagger.Directory) Gpt {
 	return m
 }
 
-func (m Gpt) Host() *dagger.Container {
-	return m.Sandbox.Host()
+// Configure a remote module as context for the sandbox
+func (m Gpt) WithRemoteModule(address string) Gpt {
+	m.Sandbox = m.Sandbox.WithRemoteModule(address)
+	return m
 }
 
-func (m Gpt) Changes() *dagger.Directory {
-	return m.Sandbox.Changes()
+// Configure a local module as context for the sandbox
+func (m Gpt) WithLocalModule(module *dagger.Directory) Gpt {
+	m.Sandbox = m.Sandbox.WithLocalModule(module)
+	return m
 }
 
 func (m Gpt) History() []string {

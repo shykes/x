@@ -37,9 +37,11 @@ type Sandbox struct {
 	// Runs of script execution
 	Runs []Run
 	// Instruction manuals for the user of the sandbox
-	Manuals   []Manual
-	DaggerCli *dagger.File // +private
-	History   []string
+	Manuals      []Manual
+	DaggerCli    *dagger.File // +private
+	History      []string
+	RemoteModule string            // +private
+	LocalModule  *dagger.Directory // +private
 }
 
 // The host container for the sandbox
@@ -48,7 +50,40 @@ func (s Sandbox) Host() *dagger.Container {
 		WithMountedFile("/bin/dagger", s.DaggerCli).
 		WithEnvVariable("HOME", "/sandbox").
 		WithDirectory("$HOME", s.Home, dagger.ContainerWithDirectoryOpts{Expand: true}).
-		WithWorkdir("$HOME", dagger.ContainerWithWorkdirOpts{Expand: true})
+		WithWorkdir("$HOME", dagger.ContainerWithWorkdirOpts{Expand: true}).
+		WithDefaultTerminalCmd([]string{"/bin/sh"}, dagger.ContainerWithDefaultTerminalCmdOpts{
+			ExperimentalPrivilegedNesting: true,
+		}).
+		WithFile("/bin/sandbox-entrypoint", s.sandboxEntrypoint())
+}
+
+func (s Sandbox) sandboxEntrypoint() *dagger.File {
+	var script string
+	if s.LocalModule != nil {
+		script = "exec dagger shell -s -m /module"
+	} else if s.RemoteModule != "" {
+		// FIXME properly shell-escpape module name
+		script = fmt.Sprintf("exec dagger shell -s -m '%s'", s.RemoteModule)
+	} else {
+		script = "exec dagger shell -s"
+	}
+	return dag.Directory().
+		WithNewFile("sandbox-entrypoint", "#!/bin/sh\n"+script, dagger.DirectoryWithNewFileOpts{Permissions: 0700}).
+		File("sandbox-entrypoint")
+}
+
+// Configure a remote module as context for the sandbox
+func (s Sandbox) WithRemoteModule(address string) Sandbox {
+	s.LocalModule = nil
+	s.RemoteModule = address
+	return s
+}
+
+// Configure a local module as context for the sandbox
+func (s Sandbox) WithLocalModule(module *dagger.Directory) Sandbox {
+	s.RemoteModule = ""
+	s.LocalModule = module
+	return s
 }
 
 // All filesystem changes made to the host sandbox so far
@@ -184,6 +219,15 @@ func (s Sandbox) LastRun() (*Run, error) {
 	return &s.Runs[len(s.Runs)-1], nil
 }
 
+// Open an interactive terminal session
+func (s Sandbox) Terminal(ctx context.Context) (Sandbox, error) {
+	_, err := s.Host().Terminal(dagger.ContainerTerminalOpts{
+		Cmd:                           []string{"/bin/sandbox-entrypoint"},
+		ExperimentalPrivilegedNesting: true,
+	}).Sync(ctx)
+	return s, err
+}
+
 // Run a script in the sandbox
 func (s Sandbox) Run(
 	ctx context.Context,
@@ -199,7 +243,7 @@ func (s Sandbox) Run(
 	hostBefore := s.Host()
 	hostAfter := hostBefore.
 		WithExec(
-			[]string{"dagger", "shell", "-s"},
+			[]string{"/bin/sandbox-entrypoint"},
 			dagger.ContainerWithExecOpts{
 				ExperimentalPrivilegedNesting: true,
 				Expect:                        dagger.ReturnTypeAny,
