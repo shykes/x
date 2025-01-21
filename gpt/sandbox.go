@@ -126,8 +126,8 @@ func (s Sandbox) Manual(ctx context.Context, key string) (*Manual, error) {
 	for _, man := range s.Manuals {
 		if man.Key == key {
 			event := fmt.Sprintf("[%s] 📖 %s", s.Username, man.Description)
-			span, _ := Tracer().Start(ctx, event)
-			span.Done()
+			_, span := Tracer().Start(ctx, event)
+			span.End()
 			s.History = append(s.History, event)
 			return &man, nil
 		}
