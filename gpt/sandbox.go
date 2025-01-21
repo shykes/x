@@ -20,7 +20,7 @@ func NewSandbox() Sandbox {
 		// DaggerCli: dag.DaggerCli().Binary(),
 		DaggerCli: dag.
 			Container().
-			From("registry.dagger.io/engine:v0.15.2@sha256:3c721e576603a28e7293b7b7e664b6ab77cd4d1ff911039de405f3cf7c1990d5").
+			From("registry.dagger.io/engine:main@sha256:50d03804e9c78dcded9f015816a7e7ffbb8b132c675647d64c69cfd19e1cc171").
 			File("/usr/local/bin/dagger"),
 		Username: "👤",
 	}
