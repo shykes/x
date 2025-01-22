@@ -74,9 +74,9 @@ type LlmState interface {
 	// Send a single API query, and process replies and tool calls
 	Query(
 		ctx context.Context,
-		model,
-		endpoint string,
-		key string,
+		model string,
+		endpoint *dagger.Service,
+		token *dagger.Secret,
 		shells []ShellTool,
 		manuals []ManualTool,
 	) (string, LlmState, error)
@@ -177,32 +177,11 @@ func (m Llm) Ask(
 	if err != nil {
 		return m, err
 	}
-	var (
-		reply, key, endpoint string
-	)
-	if m.Token != nil {
-		key, err = m.Token.Plaintext(ctx)
-		if err != nil {
-			return m, err
-		}
-	}
-	if m.Endpoint != nil {
-		// FIXME: expose the endpoint and connect to it
-		m.Endpoint, err = m.Endpoint.Start(ctx)
-		if err != nil {
-			return m, err
-		}
-		endpoint, err = m.Endpoint.Endpoint(ctx, dagger.ServiceEndpointOpts{
-			Scheme: "http",
-		})
-		if err != nil {
-			return m, err
-		}
-	}
+	var reply string
 	for {
 		// Each query gets a tool server instance with its own call counter.
 		tools := m.toolServer()
-		reply, st, err = st.Query(ctx, m.Model, endpoint, key, tools.Shells(), tools.Manuals())
+		reply, st, err = st.Query(ctx, m.Model, m.Endpoint, m.Token, tools.Shells(), tools.Manuals())
 		if err != nil {
 			return m, err
 		}

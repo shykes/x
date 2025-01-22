@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"dagger/llm/internal/dagger"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -138,16 +139,16 @@ func (st OpenAIState) WithSystemPrompt(prompt string) LlmState {
 	return st
 }
 
-// Send a chat completion API query, and update the state with the result
+// Send a chat completion API query, process tool calls, and return the reply text
 func (s OpenAIState) Query(
 	ctx context.Context,
-	model,
-	endpoint string,
-	key string,
+	model string,
+	endpoint *dagger.Service,
+	token *dagger.Secret,
 	shells []ShellTool,
 	manuals []ManualTool,
 ) (string, LlmState, error) {
-	res, err := s.sendQuery(ctx, model, endpoint, key, shells, manuals)
+	res, err := s.sendQuery(ctx, model, endpoint, token, shells, manuals)
 	if err != nil {
 		return "", s, err
 	}
@@ -168,9 +169,9 @@ func (s OpenAIState) Query(
 
 func (s OpenAIState) sendQuery(
 	ctx context.Context,
-	model,
-	endpoint string,
-	key string,
+	model string,
+	endpoint *dagger.Service,
+	token *dagger.Secret,
 	shells []ShellTool,
 	manuals []ManualTool,
 ) (res *openai.ChatCompletion, rerr error) {
@@ -209,10 +210,26 @@ func (s OpenAIState) sendQuery(
 			}),
 		})
 	}
-	return openai.NewClient(
-		option.WithAPIKey(key),
-		option.WithHeader("Content-Type", "application/json"),
-	).Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+	opts := []option.RequestOption{option.WithHeader("Content-Type", "application/json")}
+	if token != nil {
+		key, err := token.Plaintext(ctx)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, option.WithAPIKey(key))
+	}
+	if endpoint != nil {
+		endpoint, err := endpoint.Start(ctx)
+		if err != nil {
+			return nil, err
+		}
+		url, err := endpoint.Endpoint(ctx, dagger.ServiceEndpointOpts{Scheme: "http"})
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, option.WithBaseURL(url))
+	}
+	return openai.NewClient(opts...).Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Seed:     openai.Int(0),
 		Model:    openai.F(openai.ChatModel(model)),
 		Messages: openai.F(s.History),
