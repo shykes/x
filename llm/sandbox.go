@@ -306,18 +306,6 @@ func (r Run) Changes() *dagger.Directory {
 	return r.HostBefore.Rootfs().Diff(r.HostAfter.Rootfs())
 }
 
-func (r Run) Success() bool {
-	return (r.ExitCode == 0)
-}
-
-func (r Run) Output() string {
-	return r.Stdout
-}
-
-func (r Run) Error() string {
-	return r.Stderr
-}
-
 func (r Run) ToJSON() (string, error) {
 	var res struct {
 		Output  string `json:"output"`
@@ -326,9 +314,9 @@ func (r Run) ToJSON() (string, error) {
 	}
 	// Remove all ANSI escape codes (eg. part of raw interactive shell output), to avoid json marshalling failing
 	re := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
-	res.Output = re.ReplaceAllString(r.Output(), "")
-	res.Error = re.ReplaceAllString(r.Error(), "")
-	res.Success = r.Success()
+	res.Output = re.ReplaceAllString(r.Stdout, "")
+	res.Error = re.ReplaceAllString(r.Stderr, "")
+	res.Success = (r.ExitCode == 0)
 	b, err := json.Marshal(res)
 	return string(b), err
 }

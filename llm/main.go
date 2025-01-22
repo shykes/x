@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"dagger/llm/internal/dagger"
+	"encoding/json"
 
 	"fmt"
 )
@@ -77,28 +78,15 @@ type LlmState interface {
 		model string,
 		endpoint *dagger.Service,
 		token *dagger.Secret,
-		shells []ShellTool,
-		manuals []ManualTool,
+		tools []Tool,
 	) (string, LlmState, error)
 }
 
-type ShellTool interface {
+type Tool interface {
 	Name() string
 	Description() string
-	Run(context.Context, string) (string, error)
-}
-
-type RunResult interface {
-	Output() string
-	Error() string
-	Success() bool
-	ToJSON() (string, error)
-}
-
-type ManualTool interface {
-	Name() string
-	Description() string
-	Contents(context.Context) (string, error)
+	InputSchema() map[string]interface{}
+	Call(ctx context.Context, input string) (string, error)
 }
 
 // Configure an API token to authenticate against the LLM provider
@@ -180,16 +168,16 @@ func (m Llm) Ask(
 	var reply string
 	for {
 		// Each query gets a tool server instance with its own call counter.
-		tools := m.toolServer()
-		reply, st, err = st.Query(ctx, m.Model, m.Endpoint, m.Token, tools.Shells(), tools.Manuals())
+		toolServer := m.toolServer()
+		reply, st, err = st.Query(ctx, m.Model, m.Endpoint, m.Token, toolServer.Tools())
 		if err != nil {
 			return m, err
 		}
 		if len(reply) != 0 {
-			tools.sandbox = tools.sandbox.WithNote(ctx, reply, "")
+			toolServer.sandbox = toolServer.sandbox.WithNote(ctx, reply, "")
 		}
-		m.Sandbox = tools.sandbox
-		if tools.Count() == 0 {
+		m.Sandbox = toolServer.sandbox
+		if toolServer.Count() == 0 {
 			break
 		}
 	}
@@ -211,30 +199,54 @@ func (ts *toolServer) Count() int {
 	return ts.count
 }
 
-func (ts *toolServer) Shells() []ShellTool {
-	return []ShellTool{ts.daggerShell()}
+func (ts *toolServer) Tools() []Tool {
+	var tools []Tool
+	tools = append(tools, daggerShellTool{ts})
+	for _, manual := range ts.sandbox.Manuals {
+		tools = append(tools, manualTool{
+			toolServer:  ts,
+			name:        manual.Name,
+			description: manual.Description,
+		})
+	}
+	return tools
 }
 
-func (ts *toolServer) daggerShell() ShellTool {
-	return &daggerShell{ts}
-}
-
-type daggerShell struct {
+type daggerShellTool struct {
 	*toolServer
 }
 
-func (ds *daggerShell) Name() string {
+func (ds daggerShellTool) Name() string {
 	return "dagger"
 }
 
-func (dsh *daggerShell) Description() string {
+func (dsh daggerShellTool) Description() string {
 	return "Execute a dagger script. <prerequisite>read the dagger manual</prerequisite>"
 }
 
-func (dsh *daggerShell) Run(ctx context.Context, script string) (string, error) {
+func (dsh daggerShellTool) InputSchema() map[string]interface{} {
+	return map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"command": map[string]string{
+				"type": "string",
+			},
+		},
+		"required": []string{"command"},
+	}
+}
+
+func (dsh daggerShellTool) Call(ctx context.Context, input string) (string, error) {
+	fmt.Printf("shell tool call: %s")
+	var args struct {
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal([]byte(input), &args); err != nil {
+		return "", err
+	}
 	dsh.count += 1
 	var err error
-	dsh.sandbox, err = dsh.sandbox.Run(ctx, script)
+	dsh.sandbox, err = dsh.sandbox.Run(ctx, args.Command)
 	if err != nil {
 		return "", err
 	}
@@ -243,18 +255,6 @@ func (dsh *daggerShell) Run(ctx context.Context, script string) (string, error) 
 		return "", err
 	}
 	return result.ToJSON()
-}
-
-func (ts *toolServer) Manuals() []ManualTool {
-	var manuals []ManualTool
-	for _, manual := range ts.sandbox.Manuals {
-		manuals = append(manuals, manualTool{
-			toolServer:  ts,
-			name:        manual.Name,
-			description: manual.Description,
-		})
-	}
-	return manuals
 }
 
 type manualTool struct {
@@ -271,8 +271,11 @@ func (m manualTool) Description() string {
 	return m.description
 }
 
-func (m manualTool) Contents(ctx context.Context) (string, error) {
-	// FIXME: move otel custom span to here
+func (m manualTool) InputSchema() map[string]interface{} {
+	return nil
+}
+
+func (m manualTool) Call(ctx context.Context, input string) (string, error) {
 	m.count += 1
 	return m.sandbox.ReadManual(ctx, m.name)
 }

@@ -5,7 +5,6 @@ import (
 	"dagger/llm/internal/dagger"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -145,10 +144,9 @@ func (s OpenAIState) Query(
 	model string,
 	endpoint *dagger.Service,
 	token *dagger.Secret,
-	shells []ShellTool,
-	manuals []ManualTool,
+	tools []Tool,
 ) (string, LlmState, error) {
-	res, err := s.sendQuery(ctx, model, endpoint, token, shells, manuals)
+	res, err := s.sendQuery(ctx, model, endpoint, token, tools)
 	if err != nil {
 		return "", s, err
 	}
@@ -158,7 +156,7 @@ func (s OpenAIState) Query(
 	// Handle tool calls
 	calls := res.Choices[0].Message.ToolCalls
 	for _, call := range calls {
-		result, err := s.callTool(ctx, call.Function.Name, call.Function.Arguments, shells, manuals)
+		result, err := s.callTool(ctx, call.Function.Name, call.Function.Arguments, tools)
 		if err != nil {
 			return "", s, err
 		}
@@ -172,8 +170,7 @@ func (s OpenAIState) sendQuery(
 	model string,
 	endpoint *dagger.Service,
 	token *dagger.Secret,
-	shells []ShellTool,
-	manuals []ManualTool,
+	tools []Tool,
 ) (res *openai.ChatCompletion, rerr error) {
 	ctx, span := Tracer().Start(ctx, "[🤖] 💭")
 	defer func() {
@@ -182,31 +179,14 @@ func (s OpenAIState) sendQuery(
 		}
 		span.End()
 	}()
-	var tools []openai.ChatCompletionToolParam
-	for _, shell := range shells {
-		tools = append(tools, openai.ChatCompletionToolParam{
+	var toolParams []openai.ChatCompletionToolParam
+	for _, tool := range tools {
+		toolParams = append(toolParams, openai.ChatCompletionToolParam{
 			Type: openai.F(openai.ChatCompletionToolTypeFunction),
 			Function: openai.F(openai.FunctionDefinitionParam{
-				Name:        openai.String(shellToolPrefix + shell.Name()),
-				Description: openai.String(shell.Description()),
-				Parameters: openai.F(openai.FunctionParameters{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"command": map[string]string{
-							"type": "string",
-						},
-					},
-					"required": []string{"command"},
-				}),
-			}),
-		})
-	}
-	for _, man := range manuals {
-		tools = append(tools, openai.ChatCompletionToolParam{
-			Type: openai.F(openai.ChatCompletionToolTypeFunction),
-			Function: openai.F(openai.FunctionDefinitionParam{
-				Name:        openai.String(manualToolPrefix + man.Name()),
-				Description: openai.String(man.Description()),
+				Name:        openai.String(tool.Name()),
+				Description: openai.String(tool.Description()),
+				Parameters:  openai.F(openai.FunctionParameters(tool.InputSchema())),
 			}),
 		})
 	}
@@ -233,39 +213,16 @@ func (s OpenAIState) sendQuery(
 		Seed:     openai.Int(0),
 		Model:    openai.F(openai.ChatModel(model)),
 		Messages: openai.F(s.History),
-		Tools:    openai.F(tools),
+		Tools:    openai.F(toolParams),
 	})
 }
 
-func (s OpenAIState) callTool(ctx context.Context, name, args string, shells []ShellTool, manuals []ManualTool) (result string, rerr error) {
-	// 1. Are we calling a shell tool?
-	if strings.HasPrefix(name, shellToolPrefix) {
-		shellName := strings.TrimPrefix(name, shellToolPrefix)
-		for _, shell := range shells {
-			if shellName == shell.Name() {
-				// Execute the command with the specified shell
-				var shellArgs struct {
-					Command string `json:"command"`
-				}
-				if err := json.Unmarshal([]byte(args), &shellArgs); err != nil {
-					return "", err
-				}
-				return shell.Run(ctx, shellArgs.Command)
-			}
+func (s OpenAIState) callTool(ctx context.Context, name, input string, tools []Tool) (result string, rerr error) {
+	for _, tool := range tools {
+		if tool.Name() == name {
+			return tool.Call(ctx, input)
 		}
-		return "", fmt.Errorf("tool not available: %s", name)
 	}
-	// 2. Are we calling a manual tool?
-	if strings.HasPrefix(name, manualToolPrefix) {
-		manualName := strings.TrimPrefix(name, manualToolPrefix)
-		for _, manual := range manuals {
-			if manualName == manual.Name() {
-				return manual.Contents(ctx)
-			}
-		}
-		return "", fmt.Errorf("tool not available: %s", name)
-	}
-	// 3. Are we calling an unknown tool?
 	return "", fmt.Errorf("tool not available: %s", name)
 }
 
