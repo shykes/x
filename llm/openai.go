@@ -11,16 +11,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
-// An OpenAI model name
-type ModelName = string
-
-const ()
-
-const (
-	shellToolPrefix  = "run-"
-	manualToolPrefix = "man-"
-)
-
 type OpenAI struct{}
 
 func (oai OpenAI) Models() []string {
@@ -68,73 +58,18 @@ func (oai OpenAI) New() LlmState {
 
 // State of an OpenAI session, safely serializable
 type OpenAIState struct {
-	History []openai.ChatCompletionMessageParamUnion
-}
-
-func (oai OpenAI) Load(data string) (LlmState, error) {
-	st := new(OpenAIState)
-	if data == "" {
-		return st, nil
-	}
-	var raw []Message
-	err := json.Unmarshal([]byte(data), &raw)
-	if err != nil {
-		return st, err
-	}
-	for _, msg := range raw {
-		switch msg.Role {
-		case "user":
-			text, err := msg.Text()
-			if err != nil {
-				return st, err
-			}
-			st.History = append(st.History, openai.UserMessage(text))
-		case "tool":
-			text, err := msg.Text()
-			if err != nil {
-				return st, err
-			}
-			st.History = append(st.History, openai.ToolMessage(msg.ToolCallID, text))
-		case "assistant":
-			text, err := msg.Text()
-			if err != nil {
-				return st, err
-			}
-			var calls []openai.ChatCompletionMessageToolCall
-			for _, call := range msg.ToolCalls {
-				calls = append(calls, openai.ChatCompletionMessageToolCall{
-					ID: call.ID,
-					Function: openai.ChatCompletionMessageToolCallFunction{
-						Arguments: call.Function.Arguments,
-						Name:      call.Function.Name,
-					},
-					Type: call.Type,
-				})
-			}
-			st.History = append(st.History, openai.ChatCompletionMessage{
-				Role:      "assistant",
-				Content:   text,
-				ToolCalls: calls,
-			})
-		}
-	}
-	return st, nil
-}
-
-func (s OpenAIState) Save() (string, error) {
-	data, err := json.Marshal(s.History)
-	return string(data), err
+	history []openai.ChatCompletionMessageParamUnion
 }
 
 // Append a user message (prompt) to the message history
 func (st OpenAIState) WithPrompt(prompt string) LlmState {
-	st.History = append(st.History, openai.UserMessage(prompt))
+	st.history = append(st.history, openai.UserMessage(prompt))
 	return st
 }
 
 // Append a system prompt message to the history
 func (st OpenAIState) WithSystemPrompt(prompt string) LlmState {
-	st.History = append(st.History, openai.SystemMessage(prompt))
+	st.history = append(st.history, openai.SystemMessage(prompt))
 	return st
 }
 
@@ -152,7 +87,7 @@ func (s OpenAIState) Query(
 	}
 	reply := res.Choices[0].Message
 	// Add the model reply to the history
-	s.History = append(s.History, reply)
+	s.history = append(s.history, reply)
 	// Handle tool calls
 	calls := res.Choices[0].Message.ToolCalls
 	for _, call := range calls {
@@ -160,7 +95,7 @@ func (s OpenAIState) Query(
 		if err != nil {
 			return "", s, err
 		}
-		s.History = append(s.History, openai.ToolMessage(call.ID, result))
+		s.history = append(s.history, openai.ToolMessage(call.ID, result))
 	}
 	return reply.Content, s, nil
 }
@@ -212,7 +147,7 @@ func (s OpenAIState) sendQuery(
 	return openai.NewClient(opts...).Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Seed:     openai.Int(0),
 		Model:    openai.F(openai.ChatModel(model)),
-		Messages: openai.F(s.History),
+		Messages: openai.F(s.history),
 		Tools:    openai.F(toolParams),
 	})
 }
@@ -226,7 +161,57 @@ func (s OpenAIState) callTool(ctx context.Context, name, input string, tools []T
 	return "", fmt.Errorf("tool not available: %s", name)
 }
 
-type Message struct {
+func (oai OpenAI) Load(data string) (LlmState, error) {
+	st := new(OpenAIState)
+	if data == "" {
+		return st, nil
+	}
+	var raw []openAIMessage
+	err := json.Unmarshal([]byte(data), &raw)
+	if err != nil {
+		return st, err
+	}
+	for _, msg := range raw {
+		switch msg.Role {
+		case "user":
+			text, err := msg.Text()
+			if err != nil {
+				return st, err
+			}
+			st.history = append(st.history, openai.UserMessage(text))
+		case "tool":
+			text, err := msg.Text()
+			if err != nil {
+				return st, err
+			}
+			st.history = append(st.history, openai.ToolMessage(msg.ToolCallID, text))
+		case "assistant":
+			text, err := msg.Text()
+			if err != nil {
+				return st, err
+			}
+			var calls []openai.ChatCompletionMessageToolCall
+			for _, call := range msg.ToolCalls {
+				calls = append(calls, openai.ChatCompletionMessageToolCall{
+					ID: call.ID,
+					Function: openai.ChatCompletionMessageToolCallFunction{
+						Arguments: call.Function.Arguments,
+						Name:      call.Function.Name,
+					},
+					Type: call.Type,
+				})
+			}
+			st.history = append(st.history, openai.ChatCompletionMessage{
+				Role:      "assistant",
+				Content:   text,
+				ToolCalls: calls,
+			})
+		}
+	}
+	return st, nil
+}
+
+type openAIMessage struct {
 	Role       string      `json:"role", required`
 	Content    interface{} `json:"content", required`
 	ToolCallID string      `json:"tool_call_id"`
@@ -244,7 +229,7 @@ type Message struct {
 	} `json:"tool_calls"`
 }
 
-func (msg Message) Text() (string, error) {
+func (msg openAIMessage) Text() (string, error) {
 	contentJson, err := json.Marshal(msg.Content)
 	if err != nil {
 		return "", err
@@ -269,4 +254,9 @@ func (msg Message) Text() (string, error) {
 		return content, nil
 	}
 	return "", fmt.Errorf("unsupported message role: %s", msg.Role)
+}
+
+func (s OpenAIState) Save() (string, error) {
+	data, err := json.Marshal(s.history)
+	return string(data), err
 }
