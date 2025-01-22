@@ -124,7 +124,7 @@ func (s Sandbox) ReadManual(ctx context.Context, key string) (string, error) {
 // Lookup a manual
 func (s Sandbox) Manual(ctx context.Context, key string) (*Manual, error) {
 	for _, man := range s.Manuals {
-		if man.Key == key {
+		if man.Name == key {
 			event := fmt.Sprintf("[%s] 📖 %s", s.Username, man.Description)
 			_, span := Tracer().Start(ctx, event)
 			span.End()
@@ -161,7 +161,7 @@ func (s Sandbox) WithManual(
 	contents string,
 ) Sandbox {
 	s.Manuals = append(s.Manuals, Manual{
-		Key:         key,
+		Name:        key,
 		Description: description,
 		Contents:    contents,
 	})
@@ -207,7 +207,7 @@ func (s Sandbox) ImportManuals(ctx context.Context, dir *dagger.Directory) (Sand
 
 // An instruction manual for the user of the sandbox
 type Manual struct {
-	Key         string
+	Name        string
 	Description string
 	Contents    string
 }
@@ -306,19 +306,29 @@ func (r Run) Changes() *dagger.Directory {
 	return r.HostBefore.Rootfs().Diff(r.HostAfter.Rootfs())
 }
 
-// Encode the run result as JSON
-func (r Run) ResultJSON() (string, error) {
+func (r Run) Success() bool {
+	return (r.ExitCode == 0)
+}
+
+func (r Run) Output() string {
+	return r.Stdout
+}
+
+func (r Run) Error() string {
+	return r.Stderr
+}
+
+func (r Run) ToJSON() (string, error) {
 	var res struct {
-		Stdout   string
-		Stderr   string
-		ExitCode int
+		Output  string `json:"output"`
+		Error   string `json:"error"`
+		Success bool   `json:"success"`
 	}
-	res.Stdout = r.Stdout
-	res.Stderr = r.Stderr
-	res.ExitCode = r.ExitCode
+	// Remove all ANSI escape codes (eg. part of raw interactive shell output), to avoid json marshalling failing
+	re := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+	res.Output = re.ReplaceAllString(r.Output(), "")
+	res.Error = re.ReplaceAllString(r.Error(), "")
+	res.Success = r.Success()
 	b, err := json.Marshal(res)
-	if err != nil {
-		return "", err
-	}
-	return string(b), nil
+	return string(b), err
 }
