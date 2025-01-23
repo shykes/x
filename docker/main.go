@@ -51,15 +51,15 @@ func (e *Docker) Engine(
 		ctr = ctr.WithMountedCache("/var/lib/docker", volume, opts)
 	}
 	return ctr.
-		WithExec([]string{
-			"dockerd",
-			"--host=tcp://0.0.0.0:2375",
-			"--host=unix:///var/run/docker.sock",
-			"--tls=false",
-		}, dagger.ContainerWithExecOpts{
+		AsService(dagger.ContainerAsServiceOpts{
+			Args: []string{
+				"dockerd",
+				"--host=tcp://0.0.0.0:2375",
+				"--host=unix:///var/run/docker.sock",
+				"--tls=false",
+			},
 			InsecureRootCapabilities: true,
-		}).
-		AsService()
+		})
 }
 
 // A Docker CLI ready to query this engine.
