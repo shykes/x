@@ -5,6 +5,7 @@ import (
 	"dagger/llm/internal/dagger"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -49,6 +50,10 @@ func (oai OpenAI) Models() []string {
 		"gpt-3.5-turbo-1106",                 // ModelNameGPT3_5Turbo1106
 		"gpt-3.5-turbo-0125",                 // ModelNameGPT3_5Turbo0125
 		"gpt-3.5-turbo-16k-0613",             // ModelNameGPT3_5Turbo16k0613
+		"llama3.1",                           // ModelNameLlama3_1
+		"llama3.2",                           // ModelNameLlama3_2
+		"llama3.3",                           // ModelNameLlama3_3
+		"mistral",                            // ModelNameMistral
 	}
 }
 
@@ -142,6 +147,16 @@ func (s OpenAIState) sendQuery(
 		if err != nil {
 			return nil, err
 		}
+		// The following is required for Ollama - OpenAI compatibility
+		// Set Host to satisfy routing to local Ollama
+		// Note setting Host header does not work with go http.Client
+		opts = append(opts, option.WithMiddleware(
+			option.Middleware(func(req *http.Request, cb option.MiddlewareNext) (*http.Response, error) {
+				req.Host = "localhost:11434"
+				return cb(req)
+			}),
+		))
+		url += "/v1/" // This is required for Ollama OpenAI compat
 		opts = append(opts, option.WithBaseURL(url))
 	}
 	return openai.NewClient(opts...).Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
