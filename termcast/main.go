@@ -150,7 +150,7 @@ func (m *Termcast) WaitRandom(
 
 // Simulate waiting for a certain amount of time, with no input or output on the temrinal
 func (m *Termcast) Wait(
-	// wait time, in milliseconds
+	// wait time, in milliseconds. Must be an integer.
 	ms int,
 ) *Termcast {
 	m.Clock += ms
