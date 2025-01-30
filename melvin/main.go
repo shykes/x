@@ -169,7 +169,7 @@ func (solver Issue) DevContainer(
 	return dag.Container().
 		From("alpine").
 		Agent().
-		Do(`
+		Please(`
 this is a dev container for a software project in develop. you are the devops engineer, you don't know the specifics of the toolchain.
 the distro is alpine.
 the source code is in the workdir.
