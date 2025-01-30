@@ -1,16 +1,12 @@
 {
   "name": "termcast",
-  "engineVersion": "v0.15.1",
+  "engineVersion": "v0.15.3-010101000000-dev-f920a4b75f52",
   "sdk": "go",
   "dependencies": [
     {
       "name": "wolfi",
       "source": "github.com/dagger/dagger/modules/wolfi",
       "pin": "8bea631db61b6a1e956df8776af9abb857d478bc"
-    },
-    {
-      "name": "daggy",
-      "source": "../daggy"
     }
   ],
   "source": "."

@@ -42,9 +42,6 @@ func New(
 	// Terminal height
 	// +optional
 	height int,
-	// OpenAI auth key, for AI features
-	// +optional
-	key *dagger.Secret,
 	// Containerized environment for executing commands
 	// +optional
 	container *dagger.Container,
@@ -73,7 +70,6 @@ func New(
 	return &Termcast{
 		Height:    height,
 		Width:     width,
-		Key:       key,
 		Container: container,
 		Shell:     shell,
 		Prompt:    prompt,
@@ -89,8 +85,6 @@ type Termcast struct {
 	Events []*Event
 	// Time elapsed since beginning of the session, in milliseconds
 	Clock int
-	// +private
-	Key *dagger.Secret
 	// The containerized environment where commands are executed
 	// See Exec()
 	Container *dagger.Container
@@ -221,7 +215,7 @@ func (m *Termcast) execFull(ctx context.Context, cmd string) (*Termcast, error) 
 			dagger.ContainerWithExecOpts{ExperimentalPrivilegedNesting: true},
 		).
 		File("./term.cast")
-	return m.Decode(ctx, recording, true)
+	return m.DecodeFile(ctx, recording, true)
 }
 
 func (m *Termcast) execSimple(
@@ -356,7 +350,7 @@ func (m *Termcast) Gif() (*dagger.File, error) {
 // Decode an asciicast v2 file, and add its contents to the end of the recording.
 //
 //	See https://docs.asciinema.org/manual/asciicast/v2/
-func (m *Termcast) Decode(
+func (m *Termcast) DecodeFile(
 	ctx context.Context,
 	// The data to decode, in asciicast format
 	data *dagger.File,
@@ -409,41 +403,38 @@ func (m *Termcast) Decode(
 	return m, nil
 }
 
-// Ask an AI to imagine a terminal session, and add it to the recording
-func (m *Termcast) Imagine(
+// Add one event to the recording, in raw asciicast format
+// Add events to the recording from raw asciinema v2 contents
+func (m *Termcast) Decode(
 	ctx context.Context,
-	// A description of the terminal session
-	// +default="surprise me! an epic interactive session with a shell, language repl or database repl of your choice. the more exotic the better. Not python!"
-	prompt string) (*Termcast, error) {
-	prompt = `You are a terminal simulator.
-- I give you a description of a terminal session
-- You give me a stream of asciicast v2 events describing the sesion
-- On asciicast event per line
-- Don't print the asciicast header
-- Don't print anything other than the stream of events
-- For special characters, use "\u" not "\x"
-- Here is an example of output:
-------
-[1.000000, "o", "$ "]
-[1.500000, "o", "l"]
-[1.600000, "o", "s"]
-[1.700000, "o", " "]
-[1.800000, "o", "-"]
-[1.900000, "o", "l"]
-[2.000000, "o", "\r\n"]
-[2.100000, "o", "total 32\r\n"]
-[2.200000, "o", "-rw-r--r--  1 user  staff  1024 Mar  7 10:00 file1.txt\r\n"]
-------
-
-Prompt:
-` + prompt
-	out, err := dag.Daggy().Ask(ctx, prompt, m.Key)
-	if err != nil {
-		return nil, err
-	}
-	// Tell the decoder to not expect a header,
-	// since we told the LLM to not generate one.
-	return m.Decode(ctx, newFile("rec.cast", out), false)
+	// The raw events, in asciicast v2 format
+	// - exactly one event per line
+	// - Do not include te asciicast header
+	// - For special characters, use "\u" not "\x"
+	// <example>
+	// [1.000000, "o", "$ "]
+	// [1.500000, "o", "l"]
+	// [1.600000, "o", "s"]
+	// [1.700000, "o", " "]
+	// [1.800000, "o", "-"]
+	// [1.900000, "o", "l"]
+	// [2.000000, "o", "\r\n"]
+	// [2.100000, "o", "total 32\r\n"]
+	// [2.200000, "o", "-rw-r--r--  1 user  staff  1024 Mar  7 10:00 file1.txt\r\n"]
+	// </example>
+	contents string,
+	// Indicate whether the decoder should expect an asciicast header.
+	// If true, the decoder will parse (and discrd) the header, the load the events
+	// If false, the decoder will look for events directly
+	// +optional
+	// +default=true
+	expectHeader bool,
+) (*Termcast, error) {
+	return m.DecodeFile(
+		ctx,
+		dag.Directory().WithNewFile("cast", contents).File("cast"),
+		expectHeader,
+	)
 }
 
 func newFile(name, contents string) *dagger.File {
