@@ -22,5 +22,5 @@ echo "_EXPERIMENTAL_DAGGER_RUNNER_HOST=tcp://localhost:1234 ./bin/dagger-llm she
 
 dagger shell <<EOF
 github.com/shykes/dagger@llm | cli | binary --platform=current | export ./bin/dagger-llm
-github.com/shykes/dagger@llm | engine | container | with-mounted-file .env .env | up
+github.com/shykes/dagger@llm | engine | service llm | up
 EOF
