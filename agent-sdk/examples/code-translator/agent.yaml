@@ -1,0 +1,26 @@
+model: gpt-4o
+actions:
+  - name: helloworld
+    description: generate a "hello world" program in the given language
+    inputs:
+      - name: language
+        type: string
+        description: the programming language to generate in
+    outputs:
+      - name: result
+        type: directory
+        description: the generated source code. make sure it builds
+
+  - name: translate
+    description: translate code from one language to the next. call 'input' to receive the source to translate, and 'target_language' to know which language to translate to.
+    inputs:
+      - name: input
+        type: directory
+        description: the source code to translate. do not return this! Read its contents for translation.
+      - name: target_language
+        type: string
+        description: the target language to translate to
+    outputs:
+      - name: result
+        type: directory
+        description: the result of translating the input source code to the target language. Create a new directory with 'directory', then write new files to produce the final translated dir.

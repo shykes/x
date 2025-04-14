@@ -1,0 +1,15 @@
+{
+  "name": "agent-sdk",
+  "engineVersion": "v0.18.3",
+  "sdk": {
+    "source": "go"
+  },
+  "dependencies": [
+    {
+      "name": "go",
+      "source": "github.com/dagger/dagger/modules/go",
+      "pin": "b5a5e9d5e857521441da1020b0c5f117cdcc276a"
+    }
+  ],
+  "source": ".dagger"
+}

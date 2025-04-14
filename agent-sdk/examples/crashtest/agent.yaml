@@ -1,0 +1,18 @@
+model: gpt-4.1
+actions:
+  - name: go-program
+    description: Complete a Go programming assignment
+    inputs:
+      - name: assignment
+        description: The programming assignment
+        type: string
+      - name: workspace
+        type: directory
+        optional: true
+        description: A source directory to start work from
+        instructions: Start from this directory to make these edits
+    outputs:
+      - name: completed_work
+        type: directory
+        description: A source directory with the completed assignment
+        instructions: make sure it builds, using the go utilities available to you

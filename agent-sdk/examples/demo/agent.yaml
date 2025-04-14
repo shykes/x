@@ -1,0 +1,16 @@
+model: gpt-4o
+actions:
+  - name: jokes
+    description: Tell 3 different jokes
+    inputs:
+      - name: language
+        type: string
+        description: the language to write the jokes in
+      - name: humor_setting
+        type: string
+        description: the humour setting. the higher the setting, the funnier the joke
+    outputs:
+      - name: joke
+        type: directory
+        description: a directory containing the jokes. each joke is in a different language, and in separate text file.
+        instructions: think of the jokes yourself. use the 'directory' tool to create an empty dir, and add joke files from there. make sure to respect the requested language, and apply the humor setting
