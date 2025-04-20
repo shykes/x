@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -67,12 +68,7 @@ func InitRuntime(ctx context.Context) (*Runtime, error) {
 		args = append(args, cmd)
 	}
 	args = append(args, mcpCommand.Args...)
-	ctr = ctr.WithExec(args, dagger.ContainerWithExecOpts{
-
-		//		Stdin: `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{},"clientInfo":{"name":"goose","version":"1.0.18"},"protocolVersion":"2025-03-26"}}
-		//{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
-		//`,
-	})
+	ctr = ctr.WithExec(args)
 	stdout, err := ctr.Stdout(ctx)
 	if err != nil {
 		return nil, err
@@ -81,12 +77,51 @@ func InitRuntime(ctx context.Context) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
+	tools, err := parseMCPTools(stdout)
+	if err != nil {
+		return nil, err
+	}
+	functions := map[string]*dagger.Function{}
+	for _, tool := range tools {
+		fn, err := tool.Function()
+		if err != nil {
+			return nil, err
+		}
+		functions[tool.Name] = fn
+	}
 	return &Runtime{
 		Container:   ctr,
 		McpCommand:  mcpCommand,
 		ProbeStdout: stdout,
 		ProbeStderr: stderr,
+		Functions:   functions,
 	}, nil
+}
+
+func parseMCPTools(raw string) ([]Tool, error) {
+	var resp struct {
+		Result struct {
+			Tools []Tool
+		} `json:"result"`
+		JSONRPC string `json:"jsonrpc"`
+		ID      int    `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		return nil, err
+	}
+	return resp.Result.Tools, nil
+}
+
+type Tool struct {
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Args        map[string]any `json:"inputSchema"`
+}
+
+type MCP struct {
+	Name        string
+	Description string
+	Args        map[string]any
 }
 
 type Runtime struct {
@@ -94,6 +129,7 @@ type Runtime struct {
 	McpCommand  *CommandSpec
 	ProbeStdout string
 	ProbeStderr string
+	Functions   map[string]*dagger.Function
 }
 
 func (r *Runtime) Dispatch(ctx context.Context, call *Call) (any, error) {
@@ -123,8 +159,11 @@ func (r *Runtime) Dispatch(ctx context.Context, call *Call) (any, error) {
 func (r *Runtime) DispatchConstructor(ctx context.Context, call *Call) ([]*dagger.TypeDef, error) {
 	root := dag.TypeDef().WithObject(call.ModuleName)
 	// Debug function
-	fDebug := dag.Function("debug", dag.TypeDef().WithKind(dagger.TypeDefKindStringKind))
+	fDebug := dag.Function("debug", dag.TypeDef().WithKind(dagger.TypeDefKindStringKind)).WithDescription("Debug the internals of the MCP server")
 	root = root.WithFunction(fDebug)
+	for _, fn := range r.Functions {
+		root = root.WithFunction(fn)
+	}
 	return []*dagger.TypeDef{
 		root,
 	}, nil
@@ -132,4 +171,74 @@ func (r *Runtime) DispatchConstructor(ctx context.Context, call *Call) ([]*dagge
 
 func (r *Runtime) DispatchDebug(ctx context.Context, call *Call) (string, error) {
 	return fmt.Sprintf("# STDOUT\n\n%s\n\n# STDERR\n\n%s\n", r.ProbeStdout, r.ProbeStderr), nil
+}
+
+func (tool Tool) Function() (*dagger.Function, error) {
+	fn := dag.Function(
+		tool.Name,
+		dag.TypeDef().WithKind(dagger.TypeDefKindVoidKind).WithOptional(true),
+	).WithDescription(tool.Description)
+
+	// required set
+	req := map[string]struct{}{}
+	if r, ok := tool.Args["required"].([]any); ok {
+		for _, v := range r {
+			if s, ok := v.(string); ok {
+				req[s] = struct{}{}
+			}
+		}
+	}
+
+	// args
+	if props, ok := tool.Args["properties"].(map[string]any); ok {
+		for name, raw := range props {
+			schema, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			td, err := schemaToTypeDef(name, schema)
+			if err != nil {
+				return nil, err
+			}
+			if _, isReq := req[name]; !isReq {
+				td = td.WithOptional(true)
+			}
+			fn = fn.WithArg(name, td)
+		}
+	}
+	return fn, nil
+}
+
+func schemaToTypeDef(field string, s map[string]any) (*dagger.TypeDef, error) {
+	switch s["type"] {
+	case "string":
+		if enum, ok := s["enum"].([]any); ok {
+			td := dag.TypeDef().WithEnum(strings.Title(field))
+			for _, v := range enum {
+				if sv, ok := v.(string); ok {
+					td = td.WithEnumValue(sv)
+				}
+			}
+			return td, nil
+		}
+		return dag.TypeDef().WithKind(dagger.TypeDefKindStringKind), nil
+	case "integer":
+		return dag.TypeDef().WithKind(dagger.TypeDefKindIntegerKind), nil
+	case "number":
+		return dag.TypeDef().WithKind(dagger.TypeDefKindFloatKind), nil
+	case "boolean":
+		return dag.TypeDef().WithKind(dagger.TypeDefKindBooleanKind), nil
+	case "array":
+		items, ok := s["items"].(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("array %s lacks items", field)
+		}
+		elem, err := schemaToTypeDef(field+"Item", items)
+		if err != nil {
+			return nil, err
+		}
+		return dag.TypeDef().WithListOf(elem), nil
+	default:
+		return nil, fmt.Errorf("unsupported json type %v for %s", s["type"], field)
+	}
 }
