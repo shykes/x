@@ -150,10 +150,18 @@ func (r *Runtime) Dispatch(ctx context.Context, call *Call) (any, error) {
 		case "debug":
 			return r.DispatchDebug(ctx, call)
 		default:
-			return nil, fmt.Errorf("object %q has no function %q", call.ParentName, call.Name)
+			return r.DispatchMCPTool(ctx, call)
 		}
 	}
 	return nil, fmt.Errorf("no such object: %q", call.ParentName)
+}
+
+func (r *Runtime) DispatchMCPTool(ctx context.Context, call *Call) (any, error) {
+	_, found := r.Functions[call.Name]
+	if !found {
+		return nil, fmt.Errorf("function not found: %q", call.Name)
+	}
+	return "FIXME", nil
 }
 
 func (r *Runtime) DispatchConstructor(ctx context.Context, call *Call) ([]*dagger.TypeDef, error) {
@@ -176,7 +184,7 @@ func (r *Runtime) DispatchDebug(ctx context.Context, call *Call) (string, error)
 func (tool Tool) Function() (*dagger.Function, error) {
 	fn := dag.Function(
 		tool.Name,
-		dag.TypeDef().WithKind(dagger.TypeDefKindVoidKind).WithOptional(true),
+		dag.TypeDef().WithKind(dagger.TypeDefKindStringKind),
 	).WithDescription(tool.Description)
 
 	// required set
