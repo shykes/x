@@ -149,11 +149,17 @@ func (r *Runtime) Dispatch(ctx context.Context, call *Call) (any, error) {
 		switch call.Name {
 		case "debug":
 			return r.DispatchDebug(ctx, call)
+		case "container":
+			return r.DispatchContainer(ctx, call)
 		default:
 			return r.DispatchMCPTool(ctx, call)
 		}
 	}
 	return nil, fmt.Errorf("no such object: %q", call.ParentName)
+}
+
+func (r *Runtime) DispatchContainer(ctx context.Context, call *Call) (*dagger.Container, error) {
+	return r.Container, nil
 }
 
 func (r *Runtime) DispatchMCPTool(ctx context.Context, call *Call) (any, error) {
@@ -169,6 +175,10 @@ func (r *Runtime) DispatchConstructor(ctx context.Context, call *Call) ([]*dagge
 	// Debug function
 	fDebug := dag.Function("debug", dag.TypeDef().WithKind(dagger.TypeDefKindStringKind)).WithDescription("Debug the internals of the MCP server")
 	root = root.WithFunction(fDebug)
+	// Container function
+	root = root.WithFunction(
+		dag.Function("container", dag.TypeDef().WithObject("container")).WithDescription("Build the MCP server into a container"),
+	)
 	for _, fn := range r.Functions {
 		root = root.WithFunction(fn)
 	}
