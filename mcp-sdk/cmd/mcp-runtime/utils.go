@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"dagger.io/dagger"
 	"github.com/vektah/gqlparser/gqlerror"
@@ -77,12 +76,18 @@ type Call struct {
 
 // Return true if the call is to the module's constructor
 func (call *Call) IsConstructor() bool {
+	return call.IsMainObject() && call.Name == ""
+
+}
+
+// Return true if the call is to initialize the module
+func (call *Call) IsInit() bool {
 	return call.ParentName == ""
 }
 
 // Return true if the call is to a function of the module's main object
 func (call *Call) IsMainObject() bool {
-	return call.ParentName == strings.ToLower(call.ModuleName)
+	return call.ParentName == call.ModuleName
 }
 
 func (call *Call) ReturnValue(ctx context.Context, result any) error {
@@ -102,7 +107,12 @@ func (call *Call) ReturnError(ctx context.Context, err error) error {
 		err = execErr.Unwrap()
 	}
 	panic(err)
-	return call.fnCall.ReturnError(ctx, dag.Error(unwrapError(err)))
+	// FIXME
+	// return call.fnCall.ReturnError(ctx, dag.Error(unwrapError(err)))
+}
+
+func (call *Call) JSONArgs() ([]byte, error) {
+	panic("FIXME")
 }
 
 func (call *Call) DirectoryArg(name string) (*dagger.Directory, error) {

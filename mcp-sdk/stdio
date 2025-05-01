@@ -1,36 +1,12 @@
 #!/bin/sh
-# Dump an MCP stdio server’s raw tools/list reply and exit.
-# Usage: mcp‑dump‑tools.sh <server‑cmd> [args...]
+[ $# -gt 0 ] || { echo "usage: $0 cmd [args...]" >&2; exit 1; }
 
-set -e
+: "${FIFO_PREFIX:=.}"
+in=$FIFO_PREFIX/in
+out=$FIFO_PREFIX/out
+err=$FIFO_PREFIX/err
 
-[ "$#" -ge 1 ] || { echo "usage: $0 server [args...]" >&2; exit 1; }
+printf 'stdin : %s\nstdout: %s\nstderr: %s\n' "$in" "$out" "$err"
 
-# --- portable temp dir ------------------------------------------------------
-TMPDIR=${TMPDIR:-/tmp}
-# Try the POSIX form first (needs ≥6 X); fall back to “$TMPDIR/mcp.$$”.
-if tmpdir=$(mktemp -d "$TMPDIR/mcp.XXXXXX" 2>/dev/null); then :; else
-    tmpdir="$TMPDIR/mcp.$$"
-    (umask 077; mkdir "$tmpdir") || { echo "cannot create $tmpdir" >&2; exit 1; }
-fi
-
-in="$tmpdir/in"   # stdin for the server
-out="$tmpdir/out" # stdout from the server
-mkfifo "$in" "$out"
-
-"$@" <"$in" >"$out" &
-srv=$!
-
-trap 'kill "$srv" 2>/dev/null; rm -rf "$tmpdir"' INT TERM EXIT
-
-# -------- handshake ---------------------------------------------------------
-{
-    printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26"}}\n'
-    printf '{"jsonrpc":"2.0","method":"initialized"}\n'
-    printf '{"jsonrpc":"2.0","id":2,"method":"tools/list"}\n'
-} >"$in"
-
-# -------- first line whose "id":2 is the tools list -------------------------
-while IFS= read -r line; do
-    case $line in *'"id":2'* ) echo "$line"; break;; esac
-done <"$out"
+"$@" <"$in" >"$out" 2>"$err" &
+wait $!
