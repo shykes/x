@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"dagger.io/dagger"
+	"mcp-runtime/internal/dagger"
 )
 
 var (

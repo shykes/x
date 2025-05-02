@@ -1,0 +1,16 @@
+{
+  "name": "mcp-runtime",
+  "engineVersion": "v0.18.5",
+  "dependencies": [
+    {
+      "name": "stdio",
+      "source": "../../../stdio"
+    }
+  ],
+  "clients": [
+    {
+      "generator": "go",
+      "directory": "./internal/dagger"
+    }
+  ]
+}

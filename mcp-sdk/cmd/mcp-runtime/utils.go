@@ -6,7 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"dagger.io/dagger"
+	"mcp-runtime/internal/dagger"
+
 	"github.com/vektah/gqlparser/gqlerror"
 )
 
