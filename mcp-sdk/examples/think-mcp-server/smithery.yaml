@@ -1,0 +1,27 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+name: "@PhillipRt/think-mcp-server"
+description: "A structured reasoning tool for AI assistants that provides a dedicated space for complex thinking and analysis"
+version: "1.0.1"
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: "object"
+    title: "Think Tool Configuration"
+    description: "Configuration options for the Think Tool MCP server"
+    properties: {}
+    required: []
+  commandFunction: |-
+    (config) => ({
+      command: 'node',
+      args: ['dist/server.js'],
+      env: {
+        NODE_ENV: 'production'
+      }
+    })
+
+clients:
+  - claude
+  - cursor
+  - windsurf
+  - cline

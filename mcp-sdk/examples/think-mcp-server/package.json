@@ -1,0 +1,26 @@
+{
+  "name": "think-mcp-server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "node --loader ts-node/esm src/server.ts",
+    "inspect": "npx fastmcp inspect src/server.ts"
+  },
+  "keywords": ["mcp", "ai", "claude", "think-tool"],
+  "author": "",
+  "license": "ISC",
+  "description": "An MCP server that provides a 'think' tool for structured reasoning",
+  "dependencies": {
+    "@types/node": "^22.13.17",
+    "fastmcp": "^1.21.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}
