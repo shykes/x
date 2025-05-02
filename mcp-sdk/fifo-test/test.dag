@@ -1,0 +1,23 @@
+#!/usr/bin/env dagger
+
+volume() {
+    cache-volume fifo
+}
+
+ctr() {
+    container |
+    from alpine |
+    with-mounted-cache /fifo $(volume) |
+    with-workdir /fifo
+}
+
+run() {
+    ctr |
+    with-exec -- sh -c "$@"
+}
+
+run "mkfifo test"
+run "ls -l / >test" &
+run "echo bla >test" &
+
+ctr | terminal

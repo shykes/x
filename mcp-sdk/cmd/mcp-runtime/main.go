@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"math/rand"
 	"net"
 	"os"
 	"strings"
@@ -18,8 +16,6 @@ import (
 	"github.com/ThinkInAIXYZ/go-mcp/protocol"
 	"github.com/ThinkInAIXYZ/go-mcp/transport"
 )
-
-func init() { rand.Seed(time.Now().UnixNano()) }
 
 func main() {
 	if err := Serve(ctx, &Runtime{}); err != nil {
@@ -157,8 +153,6 @@ func (mcp *MCPServer) ListTools(ctx context.Context) ([]*protocol.Tool, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := io.ReadAll(conn)
-	panic(data)
 	fmt.Printf("Listing tools..\n")
 	return mcp.listTools(ctx, conn)
 }
@@ -168,7 +162,11 @@ func (mcp *MCPServer) Proxy() *dagger.Service {
 }
 
 func (mcp *MCPServer) Connect(ctx context.Context) (net.Conn, error) {
-	go mcp.Proxy().Up(ctx)
+	proxy, err := mcp.Proxy().Start(ctx)
+	if err != nil {
+		return nil, err
+	}
+	go proxy.Up(ctx)
 	time.Sleep(1 * time.Second)
 	return net.Dial("tcp", "localhost:4242")
 }
@@ -234,11 +232,15 @@ func toolToFunction(tool *protocol.Tool) (*dagger.Function, error) {
 	return fn, nil
 }
 
+func formatTypeName(name string) string {
+	return strings.ToUpper(name[0:1]) + strings.ToLower(name[1:])
+}
+
 func schemaToTypeDef(field string, s map[string]any) (*dagger.TypeDef, error) {
 	switch s["type"] {
 	case "string":
 		if enum, ok := s["enum"].([]any); ok {
-			td := dag.TypeDef().WithEnum(strings.Title(field))
+			td := dag.TypeDef().WithEnum(formatTypeName(field))
 			for _, v := range enum {
 				if sv, ok := v.(string); ok {
 					td = td.WithEnumValue(sv)
