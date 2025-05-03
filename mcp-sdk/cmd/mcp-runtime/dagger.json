@@ -4,7 +4,8 @@
   "dependencies": [
     {
       "name": "stdio",
-      "source": "../../../stdio"
+      "source": "github.com/shykes/x/stdio",
+      "pin": "66f7a37dfe073eadbd5fbb55e1f26f4deebb8a42"
     }
   ],
   "clients": [
