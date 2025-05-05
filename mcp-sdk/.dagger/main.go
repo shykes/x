@@ -30,15 +30,12 @@ func (m *McpSdk) ModuleRuntime(ctx context.Context, modSource *dagger.ModuleSour
 		return nil, err
 	}
 	return dag.Container().
-		From("docker.io/library/alpine:latest@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c").
-		WithFile("/bin/"+m.ToolName, m.bin()).
-		WithMountedDirectory("/context", modSource.ContextDirectory()).
-		WithEnvVariable("MODULE_ROOT", "/context/"+modRootPath).
-		WithEntrypoint([]string{"/bin/" + m.ToolName}).
-		Terminal(dagger.ContainerTerminalOpts{
-			Cmd:                           []string{"/bin/sh"},
-			ExperimentalPrivilegedNesting: true,
-		}), nil
+			From("docker.io/library/alpine:latest@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c").
+			WithFile("/bin/"+m.ToolName, m.bin()).
+			WithMountedDirectory("/context", modSource.ContextDirectory()).
+			WithEnvVariable("MODULE_ROOT", "/context/"+modRootPath).
+			WithEntrypoint([]string{"/bin/" + m.ToolName}),
+		nil
 }
 
 func (m *McpSdk) bin() *dagger.File {

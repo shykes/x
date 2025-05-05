@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"strings"
@@ -168,6 +169,21 @@ func (mcp *MCPServer) Connect(ctx context.Context) (net.Conn, error) {
 	}
 	go proxy.Up(ctx)
 	time.Sleep(1 * time.Second)
+	// DEBUG
+	resp, err := dag.Container().
+		From("alpine:latest").
+		WithExec([]string{"apk", "add", "--no-cache", "netcat-openbsd"}).
+		WithServiceBinding("mcp", proxy).
+		WithExec([]string{
+			"/usr/bin/nc", "-q", "1", "mcp", "4242",
+		}).
+		Stdout(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("tools:", resp)
+	panic(fmt.Sprintf("tools: <<<%s>>>", resp))
+
 	return net.Dial("tcp", "localhost:4242")
 }
 
