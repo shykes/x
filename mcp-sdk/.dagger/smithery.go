@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"time"
 
-	"mcp-runtime/internal/dagger"
+	"dagger/mcp-sdk/internal/dagger"
 
 	"github.com/dop251/goja"
 	"gopkg.in/yaml.v3"

@@ -3,5 +3,12 @@
   "engineVersion": "v0.18.5",
   "sdk": {
     "source": "go"
-  }
+  },
+  "dependencies": [
+    {
+      "name": "go",
+      "source": "github.com/dagger/dagger/modules/go",
+      "pin": "3a1bfb0d41ef5dc60dbfdac9244d985e2ed7084c"
+    }
+  ]
 }

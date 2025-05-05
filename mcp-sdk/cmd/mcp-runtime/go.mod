@@ -5,8 +5,8 @@ go 1.23.6
 require (
 	dagger.io/dagger v0.18.5
 	github.com/Khan/genqlient v0.8.0
-	github.com/ThinkInAIXYZ/go-mcp v0.2.2
 	github.com/dop251/goja v0.0.0-20250309171923-bcd7cc6bf64c
+	github.com/mark3labs/mcp-go v0.25.0
 	github.com/vektah/gqlparser v1.3.1
 	github.com/vektah/gqlparser/v2 v2.5.23
 	go.opentelemetry.io/otel v1.34.0
@@ -26,11 +26,8 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.23.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/orcaman/concurrent-map/v2 v2.0.1 // indirect
 	github.com/sosodev/duration v1.3.1 // indirect
-	github.com/tidwall/gjson v1.18.0 // indirect
-	github.com/tidwall/match v1.1.1 // indirect
-	github.com/tidwall/pretty v1.2.0 // indirect
+	github.com/spf13/cast v1.7.1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.8.0 // indirect

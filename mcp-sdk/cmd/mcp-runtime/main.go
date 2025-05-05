@@ -4,18 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
-	"net"
 	"os"
 	"strings"
-	"time"
 
 	//"dagger.io/dagger"
 	"mcp-runtime/internal/dagger"
 
-	"github.com/ThinkInAIXYZ/go-mcp/client"
-	"github.com/ThinkInAIXYZ/go-mcp/protocol"
-	"github.com/ThinkInAIXYZ/go-mcp/transport"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 func main() {
@@ -27,7 +22,6 @@ func main() {
 
 type Runtime struct {
 	Container  *dagger.Container
-	McpCommand *CommandSpec
 	FifoVolume *dagger.CacheVolume
 	Functions  map[string]*dagger.Function
 }
@@ -91,118 +85,13 @@ func (r *Runtime) DispatchInit(ctx context.Context, call *Call) ([]*dagger.TypeD
 		dag.Function("container", dag.TypeDef().WithObject("container")).WithDescription("Build the MCP server into a container"),
 	)
 	// 2. DYNAMIC TYPES AND FUNCTIONS (mapped from mcp schema)
-	// Build & run MCP server
-	mcpServer, err := r.McpServer(ctx)
-	if err != nil {
-		return nil, err
-	}
+
 	// Inspect MCP tools
-	tools, err := mcpServer.ListTools(ctx)
+	toolsJSON, err := dag.Host().File("/mcp/tools.json").Contents(ctx)
 	if err != nil {
 		return nil, err
 	}
-	// Expose each tool as a function
-	for _, tool := range tools {
-		fn, err := toolToFunction(tool)
-		if err != nil {
-			return nil, err
-		}
-		root = root.WithFunction(fn)
-	}
-	// Return all types
-	return []*dagger.TypeDef{root}, nil
-}
-
-func (r *Runtime) McpServer(ctx context.Context) (*MCPServer, error) {
-	src := moduleSource()
-	fmt.Printf("extracting command info from smithery.yaml..\n")
-	mcpCommand, err := ParseSmitheryCommand(ctx, src.File("smithery.yaml"))
-	if err != nil {
-		return nil, err
-	}
-	if t := strings.ToLower(mcpCommand.Type); t != "stdio" {
-		return nil, fmt.Errorf("unsupported mcp command type: %q. Only 'stdio' is supported.", t)
-	}
-	fmt.Printf("Building mcp container from Dockerfile...\n")
-	ctr := src.DockerBuild().
-		With(func(c *dagger.Container) *dagger.Container {
-			for k, v := range mcpCommand.Env {
-				c = c.WithEnvVariable(k, v)
-			}
-			return c
-		}).
-		With(func(c *dagger.Container) *dagger.Container {
-			var args []string
-			if cmd := mcpCommand.Command; cmd != "" {
-				args = append(args, cmd)
-			}
-			args = append(args, mcpCommand.Args...)
-			return c.WithDefaultArgs(args)
-		})
-	return &MCPServer{
-		Container: ctr,
-	}, nil
-}
-
-type MCPServer struct {
-	Container *dagger.Container
-}
-
-func (mcp *MCPServer) ListTools(ctx context.Context) ([]*protocol.Tool, error) {
-	// Connect to the mcp server
-	conn, err := mcp.Connect(ctx)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("Listing tools..\n")
-	return mcp.listTools(ctx, conn)
-}
-
-func (mcp *MCPServer) Proxy() *dagger.Service {
-	return dag.Stdio().Proxy(mcp.Container)
-}
-
-func (mcp *MCPServer) Connect(ctx context.Context) (net.Conn, error) {
-	proxy, err := mcp.Proxy().Start(ctx)
-	if err != nil {
-		return nil, err
-	}
-	go proxy.Up(ctx)
-	time.Sleep(1 * time.Second)
-	// DEBUG
-	resp, err := dag.Container().
-		From("alpine:latest").
-		WithExec([]string{"apk", "add", "--no-cache", "netcat-openbsd"}).
-		WithServiceBinding("mcp", proxy).
-		WithExec([]string{
-			"/usr/bin/nc", "-q", "1", "mcp", "4242",
-		}).
-		Stdout(ctx)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("tools:", resp)
-	panic(fmt.Sprintf("tools: <<<%s>>>", resp))
-
-	return net.Dial("tcp", "localhost:4242")
-}
-
-func (mcp *MCPServer) listTools(ctx context.Context, conn net.Conn) ([]*protocol.Tool, error) {
-	// wrap the raw conn as a ClientTransport
-	t := transport.NewMockClientTransport(conn, conn)
-	// create the MCP client over that transport
-	mc, err := client.NewClient(t)
-	if err != nil {
-		return nil, err
-	}
-	defer mc.Close()
-
-	// list and return tools
-	res, err := mc.ListTools(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return res.Tools, nil
+	panic("TOOLS:\n-------\n" + toolsJSON + "\n------\n")
 }
 
 func print(msg string, err error) {
@@ -212,7 +101,7 @@ func print(msg string, err error) {
 	fmt.Printf("%s\n", msg)
 }
 
-func toolToFunction(tool *protocol.Tool) (*dagger.Function, error) {
+func toolToFunction(tool mcp.Tool) (*dagger.Function, error) {
 	fn := dag.Function(
 		tool.Name,
 		dag.TypeDef().WithKind(dagger.TypeDefKindStringKind),
@@ -284,16 +173,4 @@ func schemaToTypeDef(field string, s map[string]any) (*dagger.TypeDef, error) {
 	default:
 		return nil, fmt.Errorf("unsupported json type %v for %s", s["type"], field)
 	}
-}
-
-func moduleSource() *dagger.Directory {
-	fmt.Printf("MODULE_ROOT=%s\n", os.Getenv("MODULE_ROOT"))
-	src := dag.Host().Directory(os.Getenv("MODULE_ROOT"))
-	if contents, err := src.Glob(ctx, "**"); err == nil {
-		fmt.Printf("----\n%s\n---\n", contents)
-	}
-	if contents, err := src.File("dagger.json").Contents(ctx); err == nil {
-		fmt.Println(contents)
-	}
-	return src
 }
