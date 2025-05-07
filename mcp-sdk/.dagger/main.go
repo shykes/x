@@ -55,8 +55,7 @@ func (m *McpSdk) Runtime(ctx context.Context) (*dagger.Container, error) {
 			WithFile("/bin/"+m.BinName, m.bin()).
 			WithEntrypoint([]string{"/bin/" + m.BinName}).
 			WithServiceBinding("mcp", mcpServer).
-			WithFile("/mcp/tools.json", mcpTools).
-			Terminal(),
+			WithFile("/mcp/tools.json", mcpTools),
 		nil
 }
 

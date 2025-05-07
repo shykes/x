@@ -91,7 +91,20 @@ func (r *Runtime) DispatchInit(ctx context.Context, call *Call) ([]*dagger.TypeD
 	if err != nil {
 		return nil, err
 	}
-	panic("TOOLS:\n-------\n" + toolsJSON + "\n------\n")
+	var manifest struct {
+		Tools []mcp.Tool `json:"tools"`
+	}
+	if err := json.Unmarshal([]byte(toolsJSON), &manifest); err != nil {
+		return nil, err
+	}
+	for _, tool := range manifest.Tools {
+		fn, err := toolToFunction(tool)
+		if err != nil {
+			return nil, err
+		}
+		root = root.WithFunction(fn)
+	}
+	return []*dagger.TypeDef{root}, nil
 }
 
 func print(msg string, err error) {
@@ -112,18 +125,10 @@ func toolToFunction(tool mcp.Tool) (*dagger.Function, error) {
 	for _, v := range tool.InputSchema.Required {
 		req[v] = struct{}{}
 	}
-
-	var inputSchema struct {
-		Properties map[string]any
-	}
-	if err := json.Unmarshal(tool.RawInputSchema, &inputSchema); err != nil {
-		return nil, err
-	}
-	// args
-	for name, raw := range inputSchema.Properties {
+	for name, raw := range tool.InputSchema.Properties {
 		schema, ok := raw.(map[string]any)
 		if !ok {
-			continue
+			return nil, fmt.Errorf("invalid property definition: not an object")
 		}
 		td, err := schemaToTypeDef(name, schema)
 		if err != nil {
