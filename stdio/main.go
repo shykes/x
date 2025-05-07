@@ -3,12 +3,14 @@ package main
 import (
 	"dagger/stdio/internal/dagger"
 	"fmt"
+	"math/rand"
+	"time"
 )
 
 func New(
 	// +optional
 	// +defaultPath="."
-	// +ignore=["*", "!go.sum", "!go.mod", "!cmd/stdio-proxy"]
+	// +ignore=["*", "!go.sum", "!go.mod", "!cmd/rstdio"]
 	proxySource *dagger.Directory,
 ) (*Stdio, error) {
 	return &Stdio{
@@ -21,16 +23,17 @@ type Stdio struct {
 }
 
 // Execute the given container as a stdio server, and expose it as a TCP service
-func (srv *Stdio) Proxy(ctr *dagger.Container,
+func (srv *Stdio) Server(
+	ctr *dagger.Container,
 	// +optional
-	// +default=4242
+	// +default=8000
 	port int,
 ) *dagger.Service {
-	ctr = ctr.WithEntrypoint([]string{"stdio-proxy"}, dagger.ContainerWithEntrypointOpts{
-		KeepDefaultArgs: true,
-	})
 	return ctr.
-		WithFile("/bin/stdio-proxy", srv.Binary()).
+		WithFile("/bin/rstdio", srv.Binary()).
+		WithEntrypoint([]string{"rstdio"}, dagger.ContainerWithEntrypointOpts{
+			KeepDefaultArgs: true,
+		}).
 		WithExposedPort(port).
 		WithEnvVariable("PORT", fmt.Sprintf("%d", port)).
 		AsService(dagger.ContainerAsServiceOpts{
@@ -38,11 +41,13 @@ func (srv *Stdio) Proxy(ctr *dagger.Container,
 		})
 }
 
+func (srv *Stdio) Client(ctr *dagger.Container) *dagger.Container {
+	return ctr.
+		WithFile("/bin/rstdio", srv.Binary())
+}
+
 // Build the proxy static binary
 func (src *Stdio) Binary() *dagger.File {
-	// FIXME:
-	// go build -a
-	// go build -installsuffix cgo
 	return dag.Container().
 		From("golang:alpine").
 		WithWorkdir("/app").
@@ -53,8 +58,19 @@ func (src *Stdio) Binary() *dagger.File {
 			"-a",
 			"-installsuffix", "cgo",
 			"-ldflags", `-s -w`,
-			"-o", "bin/stdio-proxy",
-			"./cmd/stdio-proxy",
+			"-o", "./bin/",
+			"./...",
 		}).
-		File("bin/stdio-proxy")
+		File("bin/rstdio")
+}
+
+const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+func RandString(n int) string {
+	rand.Seed(time.Now().UnixNano())
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(b)
 }

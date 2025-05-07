@@ -14,7 +14,10 @@ func New(
 	// +default="mcp-runtime"
 	binName string,
 ) *McpSdk {
-	return &McpSdk{Source: source, BinName: binName}
+	return &McpSdk{
+		Source:  source,
+		BinName: binName,
+	}
 }
 
 type McpSdk struct {
@@ -63,7 +66,7 @@ func (m *McpSdk) McpTools(ctx context.Context) (*dagger.File, error) {
 		return nil, err
 	}
 	return mcpClient.
-			WithExec([]string{"mcptools", "--format", "json", "tools", "http://mcp:4242/sse"}, dagger.ContainerWithExecOpts{
+			WithExec([]string{"mcptools", "--format", "json", "tools", "rstdio", "tcp://mcp:8000"}, dagger.ContainerWithExecOpts{
 				RedirectStdout: "tools.json",
 			}).
 			File("tools.json"),
@@ -84,14 +87,17 @@ func (m *McpSdk) McpClientBin() *dagger.File {
 }
 
 func (m *McpSdk) McpClient(ctx context.Context) (*dagger.Container, error) {
-	mcpServer, err := m.McpFrontend(ctx)
+	mcpFrontend, err := m.McpFrontend(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return dag.Container().
 			From("alpine").
-			WithFiles("/bin/", []*dagger.File{m.McpClientBin()}).
-			WithServiceBinding("mcp", mcpServer),
+			WithFiles("/bin/", []*dagger.File{
+				m.McpClientBin(),
+				dag.Stdio().Binary(),
+			}).
+			WithServiceBinding("mcp", mcpFrontend),
 		nil
 }
 
@@ -100,7 +106,7 @@ func (m *McpSdk) McpFrontend(ctx context.Context) (*dagger.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return dag.Stdio().Proxy(backend), nil
+	return dag.Stdio().Server(backend), nil
 }
 
 func (m *McpSdk) McpBackend(ctx context.Context) (*dagger.Container, error) {
