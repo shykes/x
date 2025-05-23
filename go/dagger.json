@@ -3,22 +3,5 @@
   "engineVersion": "v0.18.8",
   "sdk": {
     "source": "go"
-  },
-  "dependencies": [
-    {
-      "name": "dirdiff",
-      "source": "github.com/dagger/dagger/modules/dirdiff",
-      "pin": "68f969a06b4cd5afb9c9f51a7fac0617fd81ba1a"
-    },
-    {
-      "name": "golangci",
-      "source": "github.com/dagger/dagger/modules/golangci",
-      "pin": "68f969a06b4cd5afb9c9f51a7fac0617fd81ba1a"
-    },
-    {
-      "name": "wolfi",
-      "source": "github.com/dagger/dagger/modules/wolfi",
-      "pin": "68f969a06b4cd5afb9c9f51a7fac0617fd81ba1a"
-    }
-  ]
+  }
 }

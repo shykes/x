@@ -7,11 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/containerd/platforms"
 	"github.com/dagger/dagger/modules/go/internal/dagger"
-	"github.com/dagger/dagger/modules/go/internal/telemetry"
 )
 
 const (
@@ -76,8 +73,9 @@ func New(
 	}
 	if base == nil {
 		base = dag.
-			Wolfi().
-			Container(dagger.WolfiContainerOpts{Packages: []string{
+			Container().
+			From("cgr.dev/chainguard/wolfi-base").
+			WithExec([]string{"apk", "add",
 				"go~" + version,
 				// gcc is needed to run go test -race https://github.com/golang/go/issues/9918 (???)
 				"build-base",
@@ -88,7 +86,7 @@ func New(
 				// FIXME: make this optional with overlay support
 				"protoc~3.21.12",
 				"ca-certificates",
-			}}).
+			}).
 			WithEnvVariable("GOLANG_VERSION", version).
 			WithEnvVariable("GOPATH", "/go").
 			WithEnvVariable("PATH", "${GOPATH}/bin:${PATH}", dagger.ContainerWithEnvVariableOpts{Expand: true}).
@@ -415,34 +413,4 @@ func goCommand(
 	}
 	cmd = append(cmd, pkgs...)
 	return cmd
-}
-
-// Lint the project
-func (p Go) Lint(
-	ctx context.Context,
-	packages []string, // +optional
-) error {
-	eg := errgroup.Group{}
-	for _, pkg := range packages {
-		eg.Go(func() (rerr error) {
-			ctx, span := Tracer().Start(ctx, "lint "+path.Clean(pkg))
-			defer telemetry.End(span, func() error { return rerr })
-			return dag.
-				Golangci().
-				Lint(p.Source, dagger.GolangciLintOpts{
-					Path:         pkg,
-					GoModCache:   p.ModuleCache,
-					GoBuildCache: p.BuildCache,
-				}).
-				Assert(ctx)
-		})
-		eg.Go(func() (rerr error) {
-			ctx, span := Tracer().Start(ctx, "tidy "+path.Clean(pkg))
-			defer telemetry.End(span, func() error { return rerr })
-			beforeTidy := p.Source.Directory(pkg)
-			afterTidy := p.Env(defaultPlatform).WithWorkdir(pkg).WithExec([]string{"go", "mod", "tidy"}).Directory(".")
-			return dag.Dirdiff().AssertEqual(ctx, beforeTidy, afterTidy, []string{"go.mod", "go.sum"})
-		})
-	}
-	return eg.Wait()
 }
