@@ -6,5 +6,5 @@ import (
 type NotMain struct{}
 
 func (m *NotMain) Hello() string {
-	return "Hello, World!"
+	return "Hello, World! VERSION 2"
 }
