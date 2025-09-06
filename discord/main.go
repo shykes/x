@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -127,7 +128,9 @@ func (s *Server) Export(
 			defer span.End()
 			dir, err := channel.Export(ctx, parallel).Sync(ctx)
 			if err != nil {
-				return err
+				span.SetStatus(codes.Error, "export failed: "+err.Error())
+				// Ignore failed exports (FIXME: make this configurable)
+				return nil
 			}
 			dirs[i] = dir
 			return nil
