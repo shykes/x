@@ -110,6 +110,8 @@ func (s *Server) Export(
 	filter string,
 	// +default=1
 	parallel int,
+	// +default="html"
+	format string,
 ) (*dagger.Directory, error) {
 	channels, err := s.Channels(ctx, filter)
 	if err != nil {
@@ -124,10 +126,10 @@ func (s *Server) Export(
 	for i, channel := range channels {
 		i, channel := i, channel // capture loop variables
 		g.Go(func() error {
-			ctx, span := Tracer().Start(ctx, fmt.Sprintf("exporting channel %q", channel.Name))
+			ctx, span := Tracer().Start(ctx, fmt.Sprintf("exporting channel %q to %s", channel.Name, format))
 			// FIXME: add boilerplate for passing error in custom span
 			defer span.End()
-			dir, err := channel.Export(ctx, 1).Sync(ctx)
+			dir, err := channel.Export(ctx, 1, format).Sync(ctx)
 			if err != nil {
 				span.SetStatus(codes.Error, "export failed: "+err.Error())
 				// Ignore failed exports (FIXME: make this configurable)
@@ -222,6 +224,8 @@ func (c *Channel) Export(
 	ctx context.Context,
 	// +default=1
 	parallel int,
+	// +default="html"
+	format string,
 ) *dagger.Directory {
 	return c.Server.Account.Exporter().
 		WithCommand([]string{
@@ -231,7 +235,7 @@ func (c *Channel) Export(
 			"--media", "True",
 			"--reuse-media", "True",
 			"--parallel", fmt.Sprintf("%d", parallel),
-			"-o", "./discord/channels/%G/%T/%C.html",
+			"-o", "./discord/channels/%G/%T/%C." + format,
 			"--media-dir", "./discord/media",
 		}).
 		State.
