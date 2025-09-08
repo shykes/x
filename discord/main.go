@@ -116,6 +116,7 @@ func (s *Server) Export(
 		return nil, err
 	}
 	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(parallel)
 
 	// Pre-allocate directories array
 	dirs := make([]*dagger.Directory, len(channels))
@@ -126,7 +127,7 @@ func (s *Server) Export(
 			ctx, span := Tracer().Start(ctx, fmt.Sprintf("exporting channel %q", channel.Name))
 			// FIXME: add boilerplate for passing error in custom span
 			defer span.End()
-			dir, err := channel.Export(ctx, parallel).Sync(ctx)
+			dir, err := channel.Export(ctx, 1).Sync(ctx)
 			if err != nil {
 				span.SetStatus(codes.Error, "export failed: "+err.Error())
 				// Ignore failed exports (FIXME: make this configurable)
