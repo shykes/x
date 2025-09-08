@@ -231,6 +231,8 @@ func (c *Channel) Export(
 			"--media", "True",
 			"--reuse-media", "True",
 			"--parallel", fmt.Sprintf("%d", parallel),
+			"-o", "./discord/channels/%G/%T/%C.html",
+			"--media-dir", "./discord/media",
 		}).
 		State.
 		Directory(".")
