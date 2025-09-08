@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/otel/codes"
-	"golang.org/x/sync/errgroup"
 )
 
 func New(
@@ -117,15 +116,9 @@ func (s *Server) Export(
 	if err != nil {
 		return nil, err
 	}
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(parallel)
-
-	// Pre-allocate directories array
-	dirs := make([]*dagger.Directory, len(channels))
-
-	for i, channel := range channels {
-		i, channel := i, channel // capture loop variables
-		g.Go(func() error {
+	result := dag.Directory()
+	for _, channel := range channels {
+		if err := func() error {
 			ctx, span := Tracer().Start(ctx, fmt.Sprintf("exporting channel %q to %s", channel.Name, format))
 			// FIXME: add boilerplate for passing error in custom span
 			defer span.End()
@@ -135,18 +128,13 @@ func (s *Server) Export(
 				// Ignore failed exports (FIXME: make this configurable)
 				return nil
 			}
-			dirs[i] = dir
+			result = result.WithDirectory(".", dir)
 			return nil
-		})
+		}(); err != nil {
+			return nil, err
+		}
 	}
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
-	mergedDir := dag.Directory()
-	for _, dir := range dirs {
-		mergedDir = mergedDir.WithDirectory(".", dir)
-	}
-	return mergedDir, nil
+	return result, nil
 }
 
 func (s *Server) Channels(
