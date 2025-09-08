@@ -227,6 +227,17 @@ func (c *Channel) Export(
 	// +default="html"
 	format string,
 ) *dagger.Directory {
+	var formatFlag string
+	switch format {
+	case "html":
+		formatFlag = "HtmlLight"
+	case "json":
+		formatFlag = "Json"
+	case "plaintext":
+		formatFlag = "Plaintext"
+	default:
+		formatFlag = "Plaintext"
+	}
 	return c.Server.Account.Exporter().
 		WithCommand([]string{
 			"export",
@@ -236,7 +247,8 @@ func (c *Channel) Export(
 			"--reuse-media", "True",
 			"--parallel", fmt.Sprintf("%d", parallel),
 			"-o", "./discord/channels/%G/%T/%C." + format,
-			"--media-dir", "./discord/media",
+			"--media-dir", "./discord/media/",
+			"-f", formatFlag,
 		}).
 		State.
 		Directory(".")
